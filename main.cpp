@@ -61,9 +61,10 @@ std::string ConvertString(const std::wstring& str) {
 	return result;
 }
 
+// Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
-	//出力ウインドウへの文字入力
+	//出力ウインドウへの文字出力
 	OutputDebugStringA("Hello,DirectX!\n");
 
 	WNDCLASS wc{};
