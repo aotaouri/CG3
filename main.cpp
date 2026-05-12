@@ -8,37 +8,6 @@
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
 
-//ウインドウプロシージャ
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
-{
-	//メッセージに応じてゲーム固有の処理を行う
-	switch (msg)
-	{
-		//ウインドウが破棄された
-	case WM_DESTROY:
-		//OSに対して、アプリの終了を伝える
-		PostQuitMessage(0);
-		return 0;
-
-
-		break;
-	}
-	//標準のメッセージ処理を行う
-	return DefWindowProc(hwnd, msg, wparam, lparam);
-
-}
-
-//文字列を格納する
-std::string str0{ "STRING!!!" };
-
-//整列を文字列にする
-std::string str1{ std::to_string(10) };
-
-void Log(const std::string& message)
-{
-	OutputDebugStringA(message.c_str());
-}
-
 std::wstring ConvertString(const std::string& str) {
 	if (str.empty()) {
 		return std::wstring();
@@ -67,8 +36,35 @@ std::string ConvertString(const std::wstring& str) {
 	return result;
 }
 
+//ウインドウプロシージャ
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+	//メッセージに応じてゲーム固有の処理を行う
+	switch (msg)
+	{
+		//ウインドウが破棄された
+	case WM_DESTROY:
+		//OSに対して、アプリの終了を伝える
+		PostQuitMessage(0);
+		return 0;
 
 
+		break;
+	}
+	//標準のメッセージ処理を行う
+	return DefWindowProc(hwnd, msg, wparam, lparam);
+
+}
+
+//文字列を格納する
+std::string str0{ "STRING!!!" };
+//整列を文字列にする
+std::string str1{ std::to_string(10) };
+
+void Log(const std::string& message)
+{
+	OutputDebugStringA(message.c_str());
+}
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
