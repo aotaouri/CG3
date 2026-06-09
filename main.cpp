@@ -22,10 +22,26 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg
 
 #endif
 
+struct Vector3
+{
+	float x, y, z;
+};
 
 struct Vector4
 {
 	float x, y, z, w;
+};
+
+struct Matrix4x4
+{
+	float m[4][4];
+};
+
+struct Transform
+{
+	Vector3 scale;
+	Vector3 rotate;
+	Vector3 translate;
 };
 
 std::wstring ConvertString(const std::string& str) {
@@ -205,6 +221,237 @@ ID3D12Resource* CreateBufferResouce(ID3D12Device* device, size_t sizeInBytes)
 	assert(SUCCEEDED(hr));
 	return resource;
 }
+
+Matrix4x4 MakeIdentity4x4() {
+	Matrix4x4 result;
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			if (i == j) {
+				result.m[i][j] = 1.0f;
+			}
+			else {
+				result.m[i][j] = 0.0f;
+			}
+		}
+	}
+	return result;
+}
+
+Matrix4x4 MakeAffineMatrix(const Vector3& scale, const Vector3& rotate, const Vector3& translate)
+{
+	// X軸回転
+	Matrix4x4 rotateX = {
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, cosf(rotate.x), sinf(rotate.x), 0.0f,
+		0.0f, -sinf(rotate.x), cosf(rotate.x), 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
+
+	// Y軸回転
+	Matrix4x4 rotateY = {
+		cosf(rotate.y), 0.0f, -sinf(rotate.y), 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		sinf(rotate.y), 0.0f, cosf(rotate.y), 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
+
+	// Z軸回転
+	Matrix4x4 rotateZ = {
+		cosf(rotate.z), sinf(rotate.z), 0.0f, 0.0f,
+		-sinf(rotate.z), cosf(rotate.z), 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
+
+	// --- 2. 回転行列の合成
+
+	// 4x4行列の掛け算ヘルパー
+	auto Multiply = [](const Matrix4x4& m1, const Matrix4x4& m2) {
+		Matrix4x4 result = {};
+		for (int r = 0; r < 4; ++r) {
+			for (int c = 0; c < 4; ++c) {
+				result.m[r][c] = m1.m[r][0] * m2.m[0][c] +
+					m1.m[r][1] * m2.m[1][c] +
+					m1.m[r][2] * m2.m[2][c] +
+					m1.m[r][3] * m2.m[3][c];
+			}
+		}
+		return result;
+		};
+
+
+	Matrix4x4 rotateXYZ = Multiply(rotateX, Multiply(rotateY, rotateZ));
+
+	//3.スケール
+
+	Matrix4x4 result;
+
+	// 1行目: スケールX と 回転成分
+	result.m[0][0] = scale.x * rotateXYZ.m[0][0];
+	result.m[0][1] = scale.x * rotateXYZ.m[0][1];
+	result.m[0][2] = scale.x * rotateXYZ.m[0][2];
+	result.m[0][3] = 0.0f;
+
+	// 2行目: スケールY と 回転成分
+	result.m[1][0] = scale.y * rotateXYZ.m[1][0];
+	result.m[1][1] = scale.y * rotateXYZ.m[1][1];
+	result.m[1][2] = scale.y * rotateXYZ.m[1][2];
+	result.m[1][3] = 0.0f;
+
+	// 3行目: スケールZ と 回転成分
+	result.m[2][0] = scale.z * rotateXYZ.m[2][0];
+	result.m[2][1] = scale.z * rotateXYZ.m[2][2];
+	result.m[2][2] = scale.z * rotateXYZ.m[2][2];
+	result.m[2][3] = 0.0f;
+
+
+	// スケール行列
+	Matrix4x4 matScale = {
+		scale.x, 0.0f, 0.0f, 0.0f,
+		0.0f, scale.y, 0.0f, 0.0f,
+		0.0f, 0.0f, scale.z, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	};
+
+	// 平行移動行列
+	Matrix4x4 matTranslate = {
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		translate.x, translate.y, translate.z, 1.0f
+	};
+
+	// 行列の合成
+	Matrix4x4 matSR = Multiply(matScale, rotateXYZ);
+	Matrix4x4 matSRT = Multiply(matSR, matTranslate);
+
+	return matSRT;
+}
+
+//透視投影行列
+Matrix4x4 MakePerspectiveFovMatrix(float fovY, float aspectRatio, float nearClip, float farClip)
+{
+	Matrix4x4 result = {};
+	float cot = 1.0f / std::tan(fovY / 2.0f);
+
+	result.m[0][0] = cot / aspectRatio;
+	result.m[1][1] = cot;
+	result.m[2][2] = farClip / (farClip - nearClip);
+	result.m[2][3] = 1.0f;
+	result.m[3][2] = (-nearClip * farClip) / (farClip - nearClip);
+
+
+	return result;
+}
+
+float Determinant3x3(float m[3][3]) {
+
+	return
+		m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
+		m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+		m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+}
+
+void SubMatrix(
+	const Matrix4x4& m,
+	float sub[3][3],
+	int removeRow,
+	int removeCol) {
+
+	int rowIndex = 0;
+
+	for (int row = 0; row < 4; row++) {
+
+		if (row == removeRow) {
+			continue;
+		}
+
+		int colIndex = 0;
+
+		for (int col = 0; col < 4; col++) {
+
+			if (col == removeCol) {
+				continue;
+			}
+
+			sub[rowIndex][colIndex] = m.m[row][col];
+
+			colIndex++;
+		}
+
+		rowIndex++;
+	}
+}
+
+float Determinant4x4(const Matrix4x4& m) {
+
+	float det = 0.0f;
+
+	for (int col = 0; col < 4; col++) {
+
+		float sub[3][3];
+
+		SubMatrix(m, sub, 0, col);
+
+		float sign = (col % 2 == 0) ? 1.0f : -1.0f;
+
+		det += sign * m.m[0][col] * Determinant3x3(sub);
+	}
+
+	return det;
+}
+
+//4.逆行列
+Matrix4x4 Inverse(const Matrix4x4& m) {
+
+	Matrix4x4 result{};
+
+	float det = Determinant4x4(m);
+
+	// 逆行列なし
+	if (det == 0.0f) {
+		return MakeIdentity4x4();
+	}
+
+	for (int row = 0; row < 4; row++) {
+
+		for (int col = 0; col < 4; col++) {
+
+			float sub[3][3];
+
+			SubMatrix(m, sub, row, col);
+
+			float sign = ((row + col) % 2 == 0) ? 1.0f : -1.0f;
+
+			float cofactor = sign * Determinant3x3(sub);
+
+			// 転置しながら代入
+			result.m[col][row] = cofactor / det;
+		}
+	}
+
+	return result;
+}
+
+// 4x4行列の掛け算ヘルパー
+auto Multiply = [](const Matrix4x4& m1, const Matrix4x4& m2) {
+	Matrix4x4 result = {};
+	for (int r = 0; r < 4; ++r) {
+		for (int c = 0; c < 4; ++c) {
+			result.m[r][c] = m1.m[r][0] * m2.m[0][c] +
+				m1.m[r][1] * m2.m[1][c] +
+				m1.m[r][2] * m2.m[2][c] +
+				m1.m[r][3] * m2.m[3][c];
+		}
+	}
+	return result;
+	};
+
+//Transform変数を作る
+Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
+
+Transform cameraTransorm{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,-5.0f} };
+
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
@@ -457,10 +704,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	descriptionRootSignature.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	//RootParameter作成。複数設定できるので配列。今回は1つだけなので長さ1の配列
-	D3D12_ROOT_PARAMETER rootParameters[1] = { };
+	D3D12_ROOT_PARAMETER rootParameters[2] = { };
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; //CBVを使う
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; //PixelShaderで使う
 	rootParameters[0].Descriptor.ShaderRegister = 0;  //レジスタ番号0とバインド
+	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; //CBVを使う
+	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; //VertexShaderで使う
+	rootParameters[1].Descriptor.ShaderRegister = 0;
 	descriptionRootSignature.pParameters = rootParameters;//ルートパラメーター配列へのポインタ
 	descriptionRootSignature.NumParameters = _countof(rootParameters); //配列の長さ
 
@@ -474,6 +724,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//今回は赤を書き込んでみる
 	*materialData = Vector4(1.0f, 0.0f, 0.0f, 1.0f);
 
+	// WVP用のリソースを作る。Matrix4x4 1つ分のサイズを用意する
+	ID3D12Resource* wvpResource = CreateBufferResouce(device, sizeof(Matrix4x4));
+	//データを書き込む
+	Matrix4x4* wvpData = nullptr;
+	//書き込むためのアドレスを取得
+	wvpResource->Map(0, nullptr, reinterpret_cast<void**>(&wvpData));
+	//単位行列を書き込んでいく
+	*wvpData = MakeIdentity4x4();
+
+	
 
 	//シリアスライズしてバイナリにする
 	ID3DBlob* signatureBlob = nullptr;
@@ -620,6 +880,14 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		}
 		else {
 			//ゲームの処理
+			transform.rotate.y += 0.03f;
+			Matrix4x4 worldMatrix = MakeAffineMatrix(transform.scale, transform.rotate, transform.translate);
+			Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransorm.scale, cameraTransorm.rotate, cameraTransorm.translate);
+			Matrix4x4 viewMatrix = Inverse(cameraMatrix);
+			Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
+			Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
+			*wvpData = worldViewProjectionMatrix;
+
 #ifdef USE_IMGUI
 
 			ImGui_ImplDX12_NewFrame();
@@ -673,7 +941,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			//マテリアルCBufferの場所を設定
 			commandList->SetGraphicsRootConstantBufferView(0, materialResource->GetGPUVirtualAddress());
-			
+			//wvp用のCBufferの場所を設定	
+			commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
 			//描画!(DrawCall/ドローコール)。3頂点で1つのインスタンス。インスタンスについては今後
 			commandList->DrawInstanced(3, 1, 0, 0);
 
