@@ -1,11 +1,18 @@
-struct PixelShaderOutput
+// Object3D.PS.hlsl
+
+// C++側の rootParameters[0] (b0レジスタ) と対応
+cbuffer gTriangleColor : register(b0)
 {
-    float32_t4 color : SV_TARGET0;
+    float4 gColor;
 };
 
-PixelShaderOutput main()
+struct PSInput
 {
-    PixelShaderOutput output;
-    output.color = float32_t4(1.0f, 1.0f, 1.0f, 1.0f);
-    return output;
+    float4 position : SV_POSITION;
+};
+
+float4 main(PSInput input) : SV_TARGET
+{
+    // 定数バッファから送られてきた色をそのまま出力
+    return gColor;
 }

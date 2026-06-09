@@ -28,6 +28,10 @@ struct Vector4
 	float x, y, z, w;
 };
 
+struct TriangleColor {
+	float r, g, b, a;
+};
+
 std::wstring ConvertString(const std::string& str) {
 	if (str.empty()) {
 		return std::wstring();
@@ -429,6 +433,17 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//シリアスライズしてバイナリにする
 	ID3DBlob* signatureBlob = nullptr;
 	ID3DBlob* errorBlob = nullptr;
+	// --- RootSignature作成セクションを修正 ---
+
+// 定数バッファ（CBV）の設定
+	D3D12_ROOT_PARAMETER rootParameters[1] = {};
+	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; // 定数バッファビュー
+	rootParameters[0].Descriptor.ShaderRegister = 0;                  // b0 レジスタ
+	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // ピクセルシェーダーで使用
+
+	descriptionRootSignature.pParameters = rootParameters;
+	descriptionRootSignature.NumParameters = _countof(rootParameters);
+
 	hr = D3D12SerializeRootSignature(&descriptionRootSignature,
 		D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
 	if (FAILED(hr))
@@ -496,6 +511,42 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	hr = device->CreateGraphicsPipelineState(&graphicsPipelineStateDesc,
 		IID_PPV_ARGS(&graphicsPipelineState));
 	assert(SUCCEEDED(hr));
+
+	// --- 初期化セクションに追加 ---
+
+// 初期色 (青)
+	TriangleColor triColor = { 0.1f, 0.25f, 0.5f, 1.0f };
+
+	// 定数バッファ用リソースの設定
+	D3D12_HEAP_PROPERTIES constHeapProps{};
+	constHeapProps.Type = D3D12_HEAP_TYPE_UPLOAD; // CPUから書き込むため
+
+	D3D12_RESOURCE_DESC constResDesc{};
+	constResDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	// サイズは256バイトの倍数である必要がある
+	constResDesc.Width = (sizeof(TriangleColor) + 255) & ~255;
+	constResDesc.Height = 1;
+	constResDesc.DepthOrArraySize = 1;
+	constResDesc.MipLevels = 1;
+	constResDesc.SampleDesc.Count = 1;
+	constResDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+	ID3D12Resource* constantBuffer = nullptr;
+	hr = device->CreateCommittedResource(
+		&constHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&constResDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&constantBuffer));
+	assert(SUCCEEDED(hr));
+
+	// CPUからアクセスするためのポインタを取得 (Map)
+	TriangleColor* constData = nullptr;
+	constantBuffer->Map(0, nullptr, reinterpret_cast<void**>(&constData));
+	*constData = triColor; // 初期値を書き込む
+
+	// 他のフラグはそのまま
 
 	//頂点リソース用のヒープの設定
 	D3D12_HEAP_PROPERTIES uploadHeapProperties{};
@@ -577,7 +628,14 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			ImGui_ImplWin32_NewFrame();
 			ImGui::NewFrame();
 
-
+			// --- ここから追加 ---
+			ImGui::Begin("Triangle Settings");
+			// カラーピッカーを表示。triColor.r が float[4] として扱われる
+			if (ImGui::ColorEdit4("Triangle Color", &triColor.r)) {
+				// 色が変更されたら、定数バッファ（Map済みのポインタ）に書き込む
+				*constData = triColor;
+			}
+			ImGui::End();
 			//開発用UIの処理。実際に開発用のUIを出す場合はここをゲーム固有の処理に置き換える
 			ImGui::ShowDemoWindow();
 			//ImGuiの内部コマンドを生成する
@@ -622,6 +680,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferView); //VBVを設定
 			//形状を設定。PSOに設定しているものとはまた別。同じものを設定すると考えておけば良い
 			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+			// --- 描画コマンドセクション、IASetPrimitiveTopology の後に追加 ---
+			commandList->SetGraphicsRootSignature(rootSignature);
+			commandList->SetPipelineState(graphicsPipelineState);
+
+			// RootSignatureの0番目のパラメータに、定数バッファのGPUアドレスを設定
+			commandList->SetGraphicsRootConstantBufferView(0, constantBuffer->GetGPUVirtualAddress());
+
+			commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
+
 			//描画!(DrawCall/ドローコール)。3頂点で1つのインスタンス。インスタンスについては今後
 			commandList->DrawInstanced(3, 1, 0, 0);
 
@@ -720,9 +788,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		debug->Release();
 
 	}
-
-	//警告時に止まる
-	infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, true);
 
 	return 0;
 }
