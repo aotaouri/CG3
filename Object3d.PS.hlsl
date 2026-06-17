@@ -1,3 +1,6 @@
+
+#include "Object3d.hlsli"
+
 struct Material
 {
     float32_t4 color;
@@ -5,14 +8,19 @@ struct Material
 
 ConstantBuffer<Material> gmaterial : register(b0);
 
+Texture2D<float32_t4> gTexture : register(t0);
+
+SamplerState gSampler : register(s0);
+
 struct PixelShaderOutput
 {
     float32_t4 color : SV_TARGET0;
 };
 
-PixelShaderOutput main()
+PixelShaderOutput main(VertexShaderOutput input)
 {
     PixelShaderOutput output;
-    output.color = gmaterial.color;
+    float32_t4 textureColor = gTexture.Sample(gSampler, input.texcoord);
+    output.color = gmaterial.color * textureColor;
     return output;
 }
