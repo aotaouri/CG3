@@ -580,6 +580,8 @@ Matrix4x4 MakeOrthographicMatrix(float left, float right, float bottom, float to
 	return result;
 }
 
+D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandle()
+
 //Transform変数を作る
 Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
 
