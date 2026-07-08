@@ -1042,7 +1042,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	vertexResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 	//実際に頂点リソースを作る
 	ID3D12Resource* vertexResource = CreateBufferResouce(device, sizeof(VertexData) * 6);
-	assert(SUCCEEDED(hr));
+	assert(vertexResource != nullptr); // ポインタが正しく確保できたかをチェック
 
 	//頂点バッファビューを作成する
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
@@ -1385,6 +1385,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	srvDescriptorHeap->Release();
 	materialResource->Release();
 	textureResource->Release();
+	vertexResource->Release();
 
 	//リソースチェック
 	IDXGIDebug1* debug;
