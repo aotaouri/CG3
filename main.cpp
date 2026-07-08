@@ -799,7 +799,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//2つ目を作る
 	device->CreateRenderTargetView(swapChainResource[1], &rtvDesc, rtvHandles[1]);
 
-	ID3D12Resource* depthStencilResource = CreateDepthStencilTextureResorce(device,kClientWidth,kClientHeight);
+	ID3D12Resource* depthStencilResource = CreateDepthStencilTextureResorce(device, kClientWidth, kClientHeight);
 
 	ID3D12DescriptorHeap* dsvDescriptorHeap = CreateDescriptorHepe(device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1, false);
 
@@ -1105,6 +1105,72 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	Transform transformSprite{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
 
+	const uint32_t kSubdivision = 6;
+	const uint32_t kNumSphereVertices = kSubdivision * kSubdivision * 6; // 216頂点
+
+	// 216頂点分のリソースを確保
+	vertexResource = CreateBufferResouce(device, sizeof(VertexData) * kNumSphereVertices);
+
+	// VBVのサイズも変更
+	vertexBufferView.BufferLocation = vertexResource->GetGPUVirtualAddress(); // アドレスも再設定
+	vertexBufferView.SizeInBytes = sizeof(VertexData) * kNumSphereVertices;
+
+	// ★新しく確保したバッファをMapして、頂点データの書き込み先を更新する
+	vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData));
+
+	const float pi = 3.14159265f;
+
+	uint32_t latIndex = 0;
+	uint32_t lonIndex = 0;
+
+	uint32_t startIndex = (latIndex * kSubdivision + lonIndex) * 6;
+
+	float u = float(lonIndex) / float(kSubdivision);
+
+	float v = 1.0f - float(latIndex) / float(kSubdivision);
+
+	const float kLonEvery = pi * 2.0f / float(kSubdivision);
+
+	const float kLatEvery = pi / float(kSubdivision);
+
+	for (latIndex = 0; latIndex < kSubdivision; ++latIndex)
+	{
+		// 現在の緯度と次の緯度
+		float lat0 = -pi / 2.0f + kLatEvery * latIndex;
+		float lat1 = -pi / 2.0f + kLatEvery * (latIndex + 1);
+
+		for (lonIndex = 0; lonIndex < kSubdivision; ++lonIndex)
+		{
+			// 現在の経度と次の経度
+			float lon0 = lonIndex * kLonEvery;
+			float lon1 = (lonIndex + 1) * kLonEvery;
+
+			uint32_t start = (latIndex * kSubdivision + lonIndex) * 6;
+
+			// 各座標の計算（4つの角）
+			Vector4 p0 = { cosf(lat0) * cosf(lon0), sinf(lat0), cosf(lat0) * sinf(lon0), 1.0f };
+			Vector4 p1 = { cosf(lat1) * cosf(lon0), sinf(lat1), cosf(lat1) * sinf(lon0), 1.0f };
+			Vector4 p2 = { cosf(lat0) * cosf(lon1), sinf(lat0), cosf(lat0) * sinf(lon1), 1.0f };
+			Vector4 p3 = { cosf(lat1) * cosf(lon1), sinf(lat1), cosf(lat1) * sinf(lon1), 1.0f };
+
+			// UV座標の計算
+			Vector2 uv0 = { float(lonIndex) / kSubdivision, 1.0f - float(latIndex) / kSubdivision };
+			Vector2 uv1 = { float(lonIndex) / kSubdivision, 1.0f - float(latIndex + 1) / kSubdivision };
+			Vector2 uv2 = { float(lonIndex + 1) / kSubdivision, 1.0f - float(latIndex) / kSubdivision };
+			Vector2 uv3 = { float(lonIndex + 1) / kSubdivision, 1.0f - float(latIndex + 1) / kSubdivision };
+
+			// 三角形1個目 (p0 -> p1 -> p2)
+			vertexData[start + 0] = { p0, uv0 };
+			vertexData[start + 1] = { p1, uv1 };
+			vertexData[start + 2] = { p2, uv2 };
+
+			// 三角形2個目 (p1 -> p3 -> p2)
+			vertexData[start + 3] = { p1, uv1 };
+			vertexData[start + 4] = { p3, uv3 };
+			vertexData[start + 5] = { p2, uv2 };
+		}
+	}
+
 	//ビューポート
 	D3D12_VIEWPORT viewport{};
 	//クライアント領域のサイズと一緒にして画面全体に表示
@@ -1148,7 +1214,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			//Sprite用のWorldViewProjectionMatrixを作る
 			Matrix4x4 worldMatrixSprite = MakeAffineMatrix(transformSprite.scale, transformSprite.rotate, transformSprite.translate);
 			Matrix4x4 viewMatrixSprite = MakeIdentity4x4();
-			Matrix4x4 projectionMatrixSprite = MakeOrthographicMatrix(0.0f,float(kClientWidth), float(kClientHeight), 0.0f,0.0f, 100.0f);
+			Matrix4x4 projectionMatrixSprite = MakeOrthographicMatrix(0.0f, float(kClientWidth), float(kClientHeight), 0.0f, 0.0f, 100.0f);
 			Matrix4x4 worldViewProjectionMatrixSprite = Multiply(worldMatrixSprite, Multiply(viewMatrixSprite, projectionMatrixSprite));
 			*transformationMatrixDataSprite = worldViewProjectionMatrixSprite;
 
@@ -1190,8 +1256,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			//描画先のRTVとDSVを設定する
 			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-			commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false, nullptr);
-			
+			commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false, &dsvHandle); // ★nullptrを&dsvHandleに変更
 			//指定した色で画面全体をクリアする
 			float clearColor[] = { 0.1f,0.25f,0.5f,1.0f };//青っぽい色。RGBAの順
 			commandList->ClearRenderTargetView(rtvHandles[backBufferIndex], clearColor, 0, nullptr);
@@ -1212,21 +1277,25 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 
-
-			//マテリアルCBufferの場所を設定
+			// === 1. 球体の描画 ===
+			// 頂点バッファを球体用に設定
+			commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
+			// マテリアルと3D用の行列(wvp)を設定
 			commandList->SetGraphicsRootConstantBufferView(0, materialResource->GetGPUVirtualAddress());
-			//wvp用のCBufferの場所を設定	
 			commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
 			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
-			//描画!(DrawCall/ドローコール)。3頂点で1つのインスタンス。インスタンスについては今後
-			commandList->DrawInstanced(6, 1, 0, 0);
-			
-			//Spriteの描画。変更が必要なものだけ変更する
-			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite); //VBVを設定
-			//TransformationMatrixCBufferの場所を設定
+			// 球体を描画 (216頂点)
+			commandList->DrawInstanced(kNumSphereVertices, 1, 0, 0);
+
+			// === 2. Spriteの描画 ===
+			// 頂点バッファをスプライト用に切り替え
+			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
+			// 行列をスプライト用に切り替え
 			commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
-			//描画!(DrawCall/ドローコール)
+			// スプライトを描画 (6頂点)
 			commandList->DrawInstanced(6, 1, 0, 0);
+
+
 
 #ifdef USE_IMGUI
 			//実際のcommandListのImGuiの描画コマンドを積む
