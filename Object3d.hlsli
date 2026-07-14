@@ -11,3 +11,4 @@ struct vertexShaderInput
     float32_t2 texcoord : TEXCOORD0;
     float32_t3 normal : NORMAL0;
 };
+

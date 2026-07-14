@@ -38,6 +38,11 @@ struct Vector4
 	float x, y, z, w;
 };
 
+struct Matrix3x3
+{
+	float m[3][3];
+};
+
 struct Matrix4x4
 {
 	float m[4][4];
@@ -60,6 +65,8 @@ struct VertexData
 struct Material {
 	Vector4 color;
 	int32_t enableLighting;
+	float padding[3];
+	Matrix4x4 uvTransform;
 };
 
 struct TransformationMatrix {
@@ -72,6 +79,13 @@ struct DirectionalLight
 	Vector4 color;
 	Vector3 direction;
 	float intensity;
+};
+
+Transform uvTransformSprite
+{
+	{1.0f,1.0f,1.0f},
+	{0.0f,0.0f,0.0f},
+	{0.0f,0.0f,0.0f},
 };
 
 std::wstring ConvertString(const std::string& str) {
@@ -988,6 +1002,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	materialData->color = { 1,1,1,1 };
 	materialData->enableLighting = true;
 
+	materialData->uvTransform = MakeIdentity4x4();
+	
+
 	//Sprite用のマテリアルリソースを作る
 	ID3D12Resource* materialResourceSprite = CreateBufferResouce(device, sizeof(Material));
 
@@ -1361,8 +1378,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	indexDataSprite[0] = 0;indexDataSprite[1] = 1;indexDataSprite[2] = 2;
 	indexDataSprite[3] = 1;indexDataSprite[4] = 3;indexDataSprite[5] = 2;
 
-
-
 	//ウインドウを表示する
 	ShowWindow(hwnd, SW_SHOW);
 
@@ -1433,6 +1448,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				directionalLightData->direction.y /= length;
 				directionalLightData->direction.z /= length;
 			}
+
+			ImGui::DragFloat2("UVTranslate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
+			ImGui::DragFloat2("UVScale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
+
 
 			ImGui::End();
 #endif
@@ -1510,7 +1529,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			commandList->DrawInstanced(6, 1, 0, 0);
 
 			commandList->IASetIndexBuffer(&indexBufferViewSprite); //IBVを設定
-
+			//描画!(DrawCall/ドローコール)6個のインデックスを使用し1つのインスタンスを描画。その他は当面0で良い
 			commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
 #ifdef USE_IMGUI
