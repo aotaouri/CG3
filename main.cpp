@@ -112,9 +112,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 	}
 #endif
 
-
-
-
 	//メッセージに応じてゲーム固有の処理を行う
 	switch (msg)
 	{
@@ -978,17 +975,21 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	directionalLightResource->Map(0, nullptr, reinterpret_cast<void**>(&directionalLightData));
 
 	directionalLightData->color = { 1.0f,1.0f,1.0f,1.0f };
-	directionalLightData->direction = { 0.0f,-1.0f,0.0f };
+	directionalLightData->direction = { -0.5f,-1.0f,-0.3f };
 	directionalLightData->intensity = 1.0f;
 
 	//マテリアル用のリソースを作る。 今回はcolor1つ分のサイズを用意する
-	ID3D12Resource* materialResource = CreateBufferResouce(device, sizeof(Vector4));
+	ID3D12Resource* materialResource =CreateBufferResouce(device, sizeof(Material));
 	//マテリアルにデータを書き込む
-	Vector4* materialData = nullptr;
+	Material* materialData = nullptr;
 	//書き込むためのアドレス取得
-	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&materialData));
+	materialResource->Map(
+		0,
+		nullptr,
+		reinterpret_cast<void**>(&materialData));
 	
-	*materialData = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	materialData->color = { 1,1,1,1 };
+	materialData->enableLighting = true;
 
 	//Sprite用のマテリアルリソースを作る
 	ID3D12Resource* materialResourceSprite = CreateBufferResouce(device, sizeof(Material));
@@ -1322,6 +1323,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	scissorRect.top = 0;
 	scissorRect.bottom = kClientHeight;
 
+	// --- ループの手前で準備 ---
+	 directionalLightData = nullptr;
+	// GPUのリソースをCPU上のポインタと紐づける (Map)
+	directionalLightResource->Map(0, nullptr, reinterpret_cast<void**>(&directionalLightData));
+
+	// 初期値を設定
+	directionalLightData->color = { 1.0f, 1.0f, 1.0f, 1.0f };
+	directionalLightData->direction = { 0.0f, -1.0f, 0.0f }; // 真下に向かう光
+	directionalLightData->intensity = 1.0f;                  // 輝度1.0
+
 	//ウインドウを表示する
 	ShowWindow(hwnd, SW_SHOW);
 
@@ -1358,6 +1369,35 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			ImGui_ImplWin32_NewFrame();
 			ImGui::NewFrame();
 			ImGui::Checkbox("useMonsterBall", &useMonsterBall);
+
+#ifdef USE_IMGUI
+			// ImGuiのフレーム開始後に呼び出す
+			ImGui::Begin("Light Settings"); // "Light Settings" というウィンドウを作成
+
+			// 1. カラーピッカー (色を調整)
+			ImGui::ColorEdit4("Color", &directionalLightData->color.x);
+
+			// 2. スライダ (方向を調整)
+			ImGui::SliderFloat3("Direction", &directionalLightData->direction.x, -1.0f, 1.0f);
+
+			// 3. ドラッグ（輝度を調整）
+			ImGui::DragFloat("Intensity", &directionalLightData->intensity, 0.01f, 0.0f, 10.0f);
+
+			// 方向ベクトルの正規化処理
+			// (方向を動かした際、ベクトルの長さが1からズレると計算がおかしくなるのを防ぐ)
+			float length = std::sqrt(
+				directionalLightData->direction.x * directionalLightData->direction.x +
+				directionalLightData->direction.y * directionalLightData->direction.y +
+				directionalLightData->direction.z * directionalLightData->direction.z
+			);
+			if (length > 0.0f) {
+				directionalLightData->direction.x /= length;
+				directionalLightData->direction.y /= length;
+				directionalLightData->direction.z /= length;
+			}
+
+			ImGui::End();
+#endif
 
 			//開発用UIの処理。実際に開発用のUIを出す場合はここをゲーム固有の処理に置き換える
 			ImGui::ShowDemoWindow();
@@ -1409,12 +1449,11 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			//形状を設定。PSOに設定しているものとはまた別。同じものを設定すると考えておけば良い
 			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-
 			// === 1. 球体の描画 ===
 			// 頂点バッファを球体用に設定
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 			// マテリアルと3D用の行列(wvp)を設定
-			commandList->SetGraphicsRootConstantBufferView(0, materialResourceSprite->GetGPUVirtualAddress());
+			commandList->SetGraphicsRootConstantBufferView(0,materialResource->GetGPUVirtualAddress());
 			commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
 			commandList->SetGraphicsRootDescriptorTable(2, useMonsterBall ? textureSrvHandleGPU2 : textureSrvHandleGPU);
 			commandList->SetGraphicsRootConstantBufferView(3, directionalLightResource->GetGPUVirtualAddress());
@@ -1484,6 +1523,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//COM終了処理
 	CoUninitialize();
 
+	// OM終了処理付近
+	if (directionalLightResource) {
+		directionalLightResource->Unmap(0, nullptr); // Mapを解除
+		directionalLightResource->Release();
+	}
+
 #ifdef USE_IMGUI
 	//ImGuiの終了処理
 	//初期化と逆に行う
@@ -1530,17 +1575,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	transformationMatrixResourceSprite->Release();
 	directionalLightResource->Release();
 
-	//リソースチェック
-	IDXGIDebug1* debug;
-	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&debug))))
-	{
-		debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
-		debug->ReportLiveObjects(DXGI_DEBUG_APP, DXGI_DEBUG_RLO_ALL);
-		debug->ReportLiveObjects(DXGI_DEBUG_D3D12, DXGI_DEBUG_RLO_ALL);
-		debug->Release();
+	////リソースチェック
+	//IDXGIDebug1* debug;
+	//if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&debug))))
+	//{
+	//	debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
+	//	debug->ReportLiveObjects(DXGI_DEBUG_APP, DXGI_DEBUG_RLO_ALL);
+	//	debug->ReportLiveObjects(DXGI_DEBUG_D3D12, DXGI_DEBUG_RLO_ALL);
+	//	debug->Release();
 
-	}
-
+	//}
 
 	return 0;
 }
