@@ -623,6 +623,33 @@ D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandle(ID3D12DescriptorHeap* descrip
 	return handleGPU;
 }
 
+// スケール行列の作成
+Matrix4x4 MakeScaleMatrix(const Vector3& scale) {
+	Matrix4x4 result = MakeIdentity4x4();
+	result.m[0][0] = scale.x;
+	result.m[1][1] = scale.y;
+	result.m[2][2] = scale.z;
+	return result;
+}
+
+// Z軸回転行列の作成 (UV空間は2Dなので、Z軸回転を使用します)
+Matrix4x4 MakeRotateZMatrix(float rotateZ) {
+	Matrix4x4 result = MakeIdentity4x4();
+	result.m[0][0] = cosf(rotateZ);
+	result.m[0][1] = sinf(rotateZ);
+	result.m[1][0] = -sinf(rotateZ);
+	result.m[1][1] = cosf(rotateZ);
+	return result;
+}
+
+// 平行移動行列の作成
+Matrix4x4 MakeTranslateMatrix(const Vector3& translate) {
+	Matrix4x4 result = MakeIdentity4x4();
+	result.m[3][0] = translate.x;
+	result.m[3][1] = translate.y;
+	result.m[3][2] = translate.z;
+	return result;
+}
 
 //Transform変数を作る
 Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
@@ -1008,14 +1035,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//Sprite用のマテリアルリソースを作る
 	ID3D12Resource* materialResourceSprite = CreateBufferResouce(device, sizeof(Material));
 
-	Material* materialData2 = nullptr;
+	Material* materialDataSprite = nullptr;
 
-	materialResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&materialData2));
+	materialResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&materialDataSprite));
 
-	materialData2->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+	materialDataSprite->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 
 	//SpriteはLightingしないのでfalseを設定する
-	materialData2->enableLighting = false;
+	materialDataSprite->enableLighting = false;
+
+	materialDataSprite->uvTransform = MakeIdentity4x4();
 
 	// WVP用のリソースを作る。Matrix4x4 1つ分のサイズを用意する
 	ID3D12Resource* wvpResource = CreateBufferResouce(device, sizeof(TransformationMatrix));
@@ -1378,6 +1407,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	indexDataSprite[0] = 0;indexDataSprite[1] = 1;indexDataSprite[2] = 2;
 	indexDataSprite[3] = 1;indexDataSprite[4] = 3;indexDataSprite[5] = 2;
 
+
 	//ウインドウを表示する
 	ShowWindow(hwnd, SW_SHOW);
 
@@ -1416,6 +1446,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			*transformationMatrixDataSprite = worldViewProjectionMatrixSprite;
 
 
+			Matrix4x4 uvTransformMatrix = MakeScaleMatrix(uvTransformSprite.scale);
+			uvTransformMatrix = Multiply(uvTransformMatrix, MakeRotateZMatrix(uvTransformSprite.rotate.z));
+			uvTransformMatrix = Multiply(uvTransformMatrix, MakeTranslateMatrix(uvTransformSprite.translate));
+			materialDataSprite->uvTransform = uvTransformMatrix;
+
+
 #ifdef USE_IMGUI
 
 			ImGui_ImplDX12_NewFrame();
@@ -1451,7 +1487,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			ImGui::DragFloat2("UVTranslate", &uvTransformSprite.translate.x, 0.01f, -10.0f, 10.0f);
 			ImGui::DragFloat2("UVScale", &uvTransformSprite.scale.x, 0.01f, -10.0f, 10.0f);
-
+			ImGui::SliderAngle("UVRotate", &uvTransformSprite.rotate.z);
 
 			ImGui::End();
 #endif
@@ -1643,7 +1679,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//	debug->ReportLiveObjects(DXGI_DEBUG_APP, DXGI_DEBUG_RLO_ALL);
 	//	debug->ReportLiveObjects(DXGI_DEBUG_D3D12, DXGI_DEBUG_RLO_ALL);
 	//	debug->Release();
-
 	//}
 
 	return 0;

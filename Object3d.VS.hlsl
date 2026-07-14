@@ -14,7 +14,6 @@ struct TransformationMatrix
     
 };
 
-
 struct DirectionalLight
 {
     float32_t4 color;
@@ -23,7 +22,6 @@ struct DirectionalLight
 };
 
 ConstantBuffer<TransformationMatrix> gTransformationMatrix : register(b0);
-
 
 VertexShaderOutput main(vertexShaderInput input)
 {
