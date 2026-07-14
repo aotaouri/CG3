@@ -983,10 +983,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//マテリアルにデータを書き込む
 	Material* materialData = nullptr;
 	//書き込むためのアドレス取得
-	materialResource->Map(
-		0,
-		nullptr,
-		reinterpret_cast<void**>(&materialData));
+	materialResource->Map(0,nullptr,reinterpret_cast<void**>(&materialData));
 
 	materialData->color = { 1,1,1,1 };
 	materialData->enableLighting = true;
@@ -1486,11 +1483,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
 
 			// === 2. Spriteの描画 ===
-			// 頂点バッファをスプライト用に切り替え
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
-			// 行列をスプライト用に切り替え
-			commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
-			// スプライトを描画 (6頂点)
+			//スプライト用マテリアルを設定
+			commandList->SetGraphicsRootConstantBufferView(0,materialResourceSprite->GetGPUVirtualAddress());
+			// スプライト用行列
+			commandList->SetGraphicsRootConstantBufferView(1,transformationMatrixResourceSprite->GetGPUVirtualAddress());
+			// 描画
 			commandList->DrawInstanced(6, 1, 0, 0);
 
 
