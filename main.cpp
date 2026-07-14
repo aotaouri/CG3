@@ -975,7 +975,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	directionalLightResource->Map(0, nullptr, reinterpret_cast<void**>(&directionalLightData));
 
 	directionalLightData->color = { 1.0f,1.0f,1.0f,1.0f };
-	directionalLightData->direction = { -0.5f,-1.0f,-0.3f };
+	directionalLightData->direction = { 0.0f,-1.0f,0.0f };
 	directionalLightData->intensity = 1.0f;
 
 	//マテリアル用のリソースを作る。 今回はcolor1つ分のサイズを用意する
@@ -1006,11 +1006,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	// WVP用のリソースを作る。Matrix4x4 1つ分のサイズを用意する
 	ID3D12Resource* wvpResource = CreateBufferResouce(device, sizeof(TransformationMatrix));
 	//データを書き込む
-	Matrix4x4* wvpData = nullptr;
+	TransformationMatrix* wvpData = nullptr;
 	//書き込むためのアドレスを取得
 	wvpResource->Map(0, nullptr, reinterpret_cast<void**>(&wvpData));
 	//単位行列を書き込んでいく
-	*wvpData = MakeIdentity4x4();
+	wvpData->WVP = MakeIdentity4x4();
+	wvpData->World = MakeIdentity4x4();
 
 	D3D12_STATIC_SAMPLER_DESC staticSamplers[1] = {};
 	staticSamplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR; //バイリニアフィルタ
@@ -1291,15 +1292,29 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Vector2 uv2 = { float(lonIndex + 1) / kSubdivision, 1.0f - float(latIndex) / kSubdivision };
 			Vector2 uv3 = { float(lonIndex + 1) / kSubdivision, 1.0f - float(latIndex + 1) / kSubdivision };
 
-			// 三角形1個目 (p0 -> p1 -> p2)
-			vertexData[start + 0] = { p0, uv0 };
-			vertexData[start + 1] = { p1, uv1 };
-			vertexData[start + 2] = { p2, uv2 };
+			vertexData[start + 0].position = p0;
+			vertexData[start + 0].texcoord = uv0;
+			vertexData[start + 0].normal = { p0.x, p0.y, p0.z };
 
-			// 三角形2個目 (p1 -> p3 -> p2)
-			vertexData[start + 3] = { p1, uv1 };
-			vertexData[start + 4] = { p3, uv3 };
-			vertexData[start + 5] = { p2, uv2 };
+			vertexData[start + 1].position = p1;
+			vertexData[start + 1].texcoord = uv1;
+			vertexData[start + 1].normal = { p1.x, p1.y, p1.z };
+
+			vertexData[start + 2].position = p2;
+			vertexData[start + 2].texcoord = uv2;
+			vertexData[start + 2].normal = { p2.x, p2.y, p2.z };
+
+			vertexData[start + 3].position = p1;
+			vertexData[start + 3].texcoord = uv1;
+			vertexData[start + 3].normal = { p1.x, p1.y, p1.z };
+
+			vertexData[start + 4].position = p3;
+			vertexData[start + 4].texcoord = uv3;
+			vertexData[start + 4].normal = { p3.x, p3.y, p3.z };
+
+			vertexData[start + 5].position = p2;
+			vertexData[start + 5].texcoord = uv2;
+			vertexData[start + 5].normal = { p2.x, p2.y, p2.z };
 		}
 	}
 
@@ -1351,9 +1366,17 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Matrix4x4 worldMatrix = MakeAffineMatrix(transform.scale, transform.rotate, transform.translate);
 			Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransorm.scale, cameraTransorm.rotate, cameraTransorm.translate);
 			Matrix4x4 viewMatrix = Inverse(cameraMatrix);
-			Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
-			Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
-			*wvpData = worldViewProjectionMatrix;
+			Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(
+				0.45f,
+				float(kClientWidth) / float(kClientHeight),
+				0.1f,
+				100.0f);
+
+			Matrix4x4 worldViewProjectionMatrix =
+				Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
+
+			wvpData->WVP = worldViewProjectionMatrix;
+			wvpData->World = worldMatrix;
 
 			//Sprite用のWorldViewProjectionMatrixを作る
 			Matrix4x4 worldMatrixSprite = MakeAffineMatrix(transformSprite.scale, transformSprite.rotate, transformSprite.translate);
