@@ -9,6 +9,7 @@
 #include <dxcapi.h>
 #include <fstream>
 #include <sstream>
+#include <wrl.h>
 #include "externals/DirectXTex/DirectXTex.h"
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
@@ -100,6 +101,29 @@ struct ModelData
 	std::vector<VertexData> vertices;
 	MaterialData material;
 };
+
+class ResourceObject {
+public:
+	// コンストラクタ
+	ResourceObject(ID3D12Resource* resource)
+		: resource_(resource) 
+	{}
+
+	// デストラクタ
+	~ResourceObject() {
+		if (resource_) {     
+			resource_->Release();
+		}
+	}
+
+	ID3D12Resource* Get() const { return resource_; }
+
+private:
+	
+	ID3D12Resource* resource_;
+};
+
+
 
 std::wstring ConvertString(const std::string& str) {
 	if (str.empty()) {
@@ -713,6 +737,7 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
 		{
 			Vector4 position;
 			s >> position.x >> position.y >> position.z;
+			position.x *= -1.0f;
 			position.w = 1.0f;
 			positions.push_back(position);
 		}
@@ -725,6 +750,7 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
 		else if (identifier == "vn") {
 			Vector3 normal;
 			s >> normal.x >> normal.y >> normal.z;
+			normal.x *= -1.0f;
 			normals.push_back(normal);
 		}
 		else if (identifier == "f") 
@@ -769,7 +795,6 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
 	}
 	return modelData;
 }
-
 
 //Transform変数を作る
 Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
@@ -833,7 +858,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	}
 
 	//DXGIファクトリーの生成
-	IDXGIFactory7* dxgiFactory = nullptr;
+	Microsoft::WRL::ComPtr<IDXGIFactory7> dxgiFactory = nullptr;
 	//HRESULTはWindows系のエラーコードであり、
 	//関数が成功したかどうかをSUCCEEDEDマクロで判定できる
 	HRESULT hr = CreateDXGIFactory(IID_PPV_ARGS(&dxgiFactory));
@@ -863,6 +888,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	}
 	//適切なアダプタが見つからなかったので起動できない
 	assert(useAdapter != nullptr);
+
+
 
 	ID3D12Device* device = nullptr;
 	//機能レベルとログ出力用の文字列
@@ -930,26 +957,27 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	UploadTextureData(textureResource, mipImages);
 
 	//コマンドキューを生成する
-	ID3D12CommandQueue* commandQueue = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12CommandQueue> commandQueue = nullptr;
 	D3D12_COMMAND_QUEUE_DESC commandQueueDesc{};
 	hr = device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&commandQueue));
 	//コマンドキューの生成がうまくいかなかったので起動出来ない
 	assert(SUCCEEDED(hr));
 
 	//コマンドアロケータを生成する
-	ID3D12CommandAllocator* commandAllocator = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator = nullptr;
 	hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator));
 	//コマンドアロケータの生成がうまくいかなかったので起動できない
 	assert(SUCCEEDED(hr));
 
+
 	//コマンドリストを生成する
 	ID3D12GraphicsCommandList* commandList = nullptr;
-	hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator, nullptr, IID_PPV_ARGS(&commandList));
+	device->CreateCommandList(0,D3D12_COMMAND_LIST_TYPE_DIRECT,commandAllocator.Get(),nullptr,IID_PPV_ARGS(&commandList));
 	//コマンドリストの生成がうまくいかなかったので起動できない
 	assert(SUCCEEDED(hr));
 
 	//スワップチェーンを作成する
-	IDXGISwapChain4* swapChain = nullptr;
+	Microsoft::WRL::ComPtr<IDXGISwapChain4> swapChain = nullptr;
 	DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
 	swapChainDesc.Width = kClientWidth;     //画面の幅。ウィンドウのクライアント領域を同じものにしておく
 	swapChainDesc.Height = kClientHeight;   //画面の高さ。ウィンドウのクライアント領域を同じものにしておく
@@ -959,7 +987,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	swapChainDesc.BufferCount = 2;//ダブルバッファ
 	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; //モニタにうつしたら、中身を破棄
 	//コマンドキュー、ウィンドウハンドル、設定を渡して生成する
-	hr = dxgiFactory->CreateSwapChainForHwnd(commandQueue, hwnd, &swapChainDesc, nullptr, nullptr, reinterpret_cast<IDXGISwapChain1**>(&swapChain));
+	dxgiFactory->CreateSwapChainForHwnd(commandQueue.Get(), hwnd, &swapChainDesc, nullptr, nullptr, reinterpret_cast<IDXGISwapChain1**>(swapChain.GetAddressOf()));
 	assert(SUCCEEDED(hr));
 
 	//SwapChainからResourceを引っ張ってくる
@@ -1541,6 +1569,11 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	vertexResourceModel->Map(0, nullptr, reinterpret_cast<void**>(&vertexDataModel));
 	std::memcpy(vertexDataModel, modelData.vertices.data(), sizeof(VertexData) * modelData.vertices.size());
 
+	ResourceObject depthStenceilResource = CreateDepthStencilTextureResorce(device, kClientWidth, kClientHeight);
+
+	Microsoft::WRL::ComPtr<ID3D12Resource>
+	CreteTextureResource(const Microsoft::WRL::ComPtr<ID3D12Device>& device, const DirectX::TexMetadata& metadata);
+
 	//ウインドウを表示する
 	ShowWindow(hwnd, SW_SHOW);
 
@@ -1652,7 +1685,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			//遷移後のResourceState
 			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 
-
 			//TransitionBarrierを張る
 			commandList->ResourceBarrier(1, &barrier);
 
@@ -1754,7 +1786,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			//次のフレーム用のコマンドリストを準備
 			hr = commandAllocator->Reset();
 			assert(SUCCEEDED(hr));
-			hr = commandList->Reset(commandAllocator, nullptr);
+			hr = commandList->Reset(commandAllocator.Get(), graphicsPipelineState);
 			assert(SUCCEEDED(hr));
 
 
