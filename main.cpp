@@ -10,11 +10,13 @@
 #include <fstream>
 #include <sstream>
 #include <wrl.h>
+#include <xaudio2.h>
 #include "externals/DirectXTex/DirectXTex.h"
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"dxguid.lib")
 #pragma comment(lib,"dxcompiler.lib")
+#pragma comment(lib,"xaudio2.lib")
 
 #ifdef USE_IMGUI
 
@@ -135,6 +137,34 @@ struct D3DResourceLeakChecker {
 			debug->ReportLiveObjects(DXGI_DEBUG_D3D12, DXGI_DEBUG_RLO_ALL);
 		}
 	}
+};
+
+struct ChunkHeader
+{
+	char id[4];
+	int32_t size;
+};
+
+struct RiffHeader
+{
+	ChunkHeader chunk;
+	char type[4];
+};
+
+struct FormatChunk
+{
+	ChunkHeader chunk;
+	WAVEFORMATEX fmt;
+};
+
+struct SoundData
+{
+	//波形フォーマット
+	WAVEFORMATEX wfex;
+	//バッファの先頭アドレス
+	BYTE* pBuffer;
+	//バッファのサイズ
+	unsigned int bufferSize;
 };
 
 std::wstring ConvertString(const std::string& str) {
@@ -808,6 +838,90 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
 	return modelData;
 }
 
+SoundData SoundLoadWave(const char* filename)
+{
+	std::ifstream file;
+
+	file.open(filename, std::ios_base::binary);
+	assert(file.is_open());
+
+	// 1. RIFFヘッダーの確認
+	RiffHeader riff;
+	file.read((char*)&riff, sizeof(riff));
+
+	if (strncmp(riff.chunk.id, "RIFF", 4) != 0 || strncmp(riff.type, "WAVE", 4) != 0)
+	{
+		assert(0);
+	}
+
+	// 2. Formatチャンクの確認
+	FormatChunk format = {};
+	file.read((char*)&format, sizeof(ChunkHeader));
+	if (strncmp(format.chunk.id, "fmt ", 4) != 0)
+	{
+		assert(0);
+	}
+
+	assert(format.chunk.size <= sizeof(format.fmt));
+	file.read((char*)&format.fmt, format.chunk.size);
+
+	// 3. "data" チャンクが見つかるまでループでスキップする
+	ChunkHeader chunk;
+	while (file.read((char*)&chunk, sizeof(chunk)))
+	{
+		if (strncmp(chunk.id, "data", 4) == 0)
+		{
+			// "data" チャンクが見つかったらループを抜ける
+			break;
+		}
+
+		// "data" 以外のチャンク (JUNK, LIST, fact など) はサイズ分だけ読み飛ばす
+		file.seekg(chunk.size, std::ios_base::cur);
+	}
+
+	// 4. 波形データの読み込み
+	char* pBuffer = new char[chunk.size];
+	file.read(pBuffer, chunk.size);
+
+	file.close();
+
+	SoundData soundData = {};
+	soundData.wfex = format.fmt;
+	soundData.pBuffer = reinterpret_cast<BYTE*>(pBuffer);
+	soundData.bufferSize = chunk.size;
+
+	return soundData;
+}
+
+void SoundUnload(SoundData* soundData)
+{
+
+	delete[] soundData->pBuffer;
+
+	soundData->pBuffer = 0;
+	soundData->bufferSize = 0;
+	soundData->wfex = {};
+}
+
+void SoundPlayWave(IXAudio2* xAudio2, const SoundData& soundData)
+{
+
+	HRESULT hr;
+
+	IXAudio2SourceVoice* pSourceVoice = nullptr;
+	hr = xAudio2->CreateSourceVoice(&pSourceVoice, &soundData.wfex);
+	assert(SUCCEEDED(hr));
+
+	XAUDIO2_BUFFER buf{};
+	buf.pAudioData = soundData.pBuffer;
+	buf.AudioBytes = soundData.bufferSize;
+	buf.Flags = XAUDIO2_END_OF_STREAM;
+
+	hr = pSourceVoice->SubmitSourceBuffer(&buf);
+	hr = pSourceVoice->Start();
+
+}
+
 //Transform変数を作る
 Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
 
@@ -860,7 +974,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		nullptr,                 // メニューハンドル
 		wc.hInstance,            // インスタントハンドル
 		nullptr);                // オプション
-
 
 	ID3D12Debug1* debugController = nullptr;
 	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
@@ -1588,6 +1701,17 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	Microsoft::WRL::ComPtr<ID3D12Resource>
 	CreteTextureResource(const Microsoft::WRL::ComPtr<ID3D12Device>& device, const DirectX::TexMetadata& metadata);
 
+	Microsoft::WRL::ComPtr<IXAudio2> xAudio2;
+	IXAudio2MasteringVoice* masterVoice;
+
+	hr = XAudio2Create(&xAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
+
+	hr = xAudio2->CreateMasteringVoice(&masterVoice);
+
+	SoundData soundData1 = SoundLoadWave("sound/Alarm01.wav");
+
+	SoundPlayWave(xAudio2.Get(), soundData1);
+
 	//ウインドウを表示する
 	ShowWindow(hwnd, SW_SHOW);
 
@@ -1809,6 +1933,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	//COM終了処理
 	CoUninitialize();
+
+	xAudio2.Reset();
+	SoundUnload(&soundData1);
 
 	// OM終了処理付近
 	if (directionalLightResource) {
