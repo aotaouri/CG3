@@ -129,7 +129,8 @@ private:
 	ID3D12Resource* resource_;
 };
 
-struct D3DResourceLeakChecker {
+struct D3DResourceLeakChecker 
+{
 	~D3DResourceLeakChecker()
 	{
 		//リソースチェック
@@ -1727,6 +1728,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	SoundPlayWave(xAudio2.Get(), soundData1);
 
+	// コンボボックス用
+int currentType = 0;
+const char* objectTypes[] = { "Sprite", "Model", "Sphere" };
+
 	//ウインドウを表示する
 	ShowWindow(hwnd, SW_SHOW);
 
@@ -1787,7 +1792,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			ImGui_ImplWin32_NewFrame();
 			ImGui::NewFrame();
 			ImGui::Checkbox("useMonsterBall", &useMonsterBall);
-			ImGui::SliderAngle("Rotate Y", &transform.rotate.y);
+		
 #ifdef USE_IMGUI
 			// ImGuiのフレーム開始後に呼び出す
 			ImGui::Begin("Light Settings"); // "Light Settings" というウィンドウを作成
@@ -1820,7 +1825,45 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			ImGui::End();
 
+#ifdef USE_IMGUI
+			ImGui::Begin("Transform Settings"); // トランスフォーム調整用ウィンドウ
 
+			// ------------------------------------
+			// 1. 3Dオブジェクト (transform) 用コントロール
+			// ------------------------------------
+			if (ImGui::TreeNode("3D Transform")) {
+				// スケール (X, Y, Z)
+				ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f, 0.01f, 10.0f);
+
+				// 回転 (X, Y, Z) - ラジアンを度数法(deg)で操作
+				ImGui::SliderAngle("Rotate X", &transform.rotate.x);
+				ImGui::SliderAngle("Rotate Y", &transform.rotate.y);
+				ImGui::SliderAngle("Rotate Z", &transform.rotate.z);
+
+				// 平行移動 (X, Y, Z)
+				ImGui::DragFloat3("Translate", &transform.translate.x, 0.05f, -50.0f, 50.0f);
+
+				ImGui::TreePop();
+			}
+
+			// ------------------------------------
+			// 2. 2Dスプライト (transformSprite) 用コントロール
+			// ------------------------------------
+			if (ImGui::TreeNode("Sprite Transform")) {
+				// スプライトのスケール
+				ImGui::DragFloat3("Sprite Scale", &transformSprite.scale.x, 0.01f, 0.01f, 10.0f);
+
+				// スプライトの回転（2D描画なのでZ軸回転のみで十分な場合が多いです）
+				ImGui::SliderAngle("Sprite Rotate Z", &transformSprite.rotate.z);
+
+				// スプライトの平行移動（画面座標系に合わせて速度を微調整）
+				ImGui::DragFloat3("Sprite Translate", &transformSprite.translate.x, 1.0f, -1280.0f, 1280.0f);
+
+				ImGui::TreePop();
+			}
+
+			ImGui::End();
+#endif
 
 
 #endif
@@ -1883,7 +1926,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			commandList->SetGraphicsRootDescriptorTable(2, useMonsterBall ? textureSrvHandleGPU2 : textureSrvHandleGPU);
 			commandList->SetGraphicsRootConstantBufferView(3, directionalLightResource->GetGPUVirtualAddress());
 			// 球体を描画 (216頂点)
-			//commandList->DrawInstanced(kNumSphereVertices, 1, 0, 0);
+			commandList->DrawInstanced(kNumSphereVertices, 1, 0, 0);
 
 			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
 
@@ -1894,10 +1937,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			// スプライト用行列
 			commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
 			// 描画
-			//commandList->DrawInstanced(6, 1, 0, 0);
+			commandList->DrawInstanced(6, 1, 0, 0);
 
 			// === 3. 3Dモデルの描画 ===
-// モデル用の頂点バッファをセット
+            // モデル用の頂点バッファをセット
 			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewModel);
 
 			// 必要に応じてマテリアルや行列などを設定
