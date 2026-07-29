@@ -11,6 +11,8 @@ public:
 
 	void Update(const BYTE* key);
 
+	const Matrix4x4& GetViewMatrix() const { return viewMatrix_; }
+	const Matrix4x4& GetProjectionMatrix() const { return projectionMatrix_; }
 
 private:
 

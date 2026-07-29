@@ -14,6 +14,8 @@
 #include <xaudio2.h>
 #include "externals/DirectXTex/DirectXTex.h"
 #include <dinput.h>
+#include "DebugCamera.h"
+#include "MyMath.h"
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"dxguid.lib")
@@ -37,11 +39,6 @@ struct Vector2
 	float x, y;
 };
 
-struct Vector3
-{
-	float x, y, z;
-};
-
 struct Vector4
 {
 	float x, y, z, w;
@@ -50,11 +47,6 @@ struct Vector4
 struct Matrix3x3
 {
 	float m[3][3];
-};
-
-struct Matrix4x4
-{
-	float m[4][4];
 };
 
 struct Transform
@@ -362,96 +354,6 @@ Matrix4x4 MakeIdentity4x4() {
 	return result;
 }
 
-Matrix4x4 MakeAffineMatrix(const Vector3& scale, const Vector3& rotate, const Vector3& translate)
-{
-	// X軸回転
-	Matrix4x4 rotateX = {
-		1.0f, 0.0f, 0.0f, 0.0f,
-		0.0f, cosf(rotate.x), sinf(rotate.x), 0.0f,
-		0.0f, -sinf(rotate.x), cosf(rotate.x), 0.0f,
-		0.0f, 0.0f, 0.0f, 1.0f
-	};
-
-	// Y軸回転
-	Matrix4x4 rotateY = {
-		cosf(rotate.y), 0.0f, -sinf(rotate.y), 0.0f,
-		0.0f, 1.0f, 0.0f, 0.0f,
-		sinf(rotate.y), 0.0f, cosf(rotate.y), 0.0f,
-		0.0f, 0.0f, 0.0f, 1.0f
-	};
-
-	// Z軸回転
-	Matrix4x4 rotateZ = {
-		cosf(rotate.z), sinf(rotate.z), 0.0f, 0.0f,
-		-sinf(rotate.z), cosf(rotate.z), 0.0f, 0.0f,
-		0.0f, 0.0f, 1.0f, 0.0f,
-		0.0f, 0.0f, 0.0f, 1.0f
-	};
-
-	// --- 2. 回転行列の合成
-
-	// 4x4行列の掛け算ヘルパー
-	auto Multiply = [](const Matrix4x4& m1, const Matrix4x4& m2) {
-		Matrix4x4 result = {};
-		for (int r = 0; r < 4; ++r) {
-			for (int c = 0; c < 4; ++c) {
-				result.m[r][c] = m1.m[r][0] * m2.m[0][c] +
-					m1.m[r][1] * m2.m[1][c] +
-					m1.m[r][2] * m2.m[2][c] +
-					m1.m[r][3] * m2.m[3][c];
-			}
-		}
-		return result;
-		};
-
-
-	Matrix4x4 rotateXYZ = Multiply(rotateX, Multiply(rotateY, rotateZ));
-
-	//3.スケール
-
-	Matrix4x4 result;
-
-	// 1行目: スケールX と 回転成分
-	result.m[0][0] = scale.x * rotateXYZ.m[0][0];
-	result.m[0][1] = scale.x * rotateXYZ.m[0][1];
-	result.m[0][2] = scale.x * rotateXYZ.m[0][2];
-	result.m[0][3] = 0.0f;
-
-	// 2行目: スケールY と 回転成分
-	result.m[1][0] = scale.y * rotateXYZ.m[1][0];
-	result.m[1][1] = scale.y * rotateXYZ.m[1][1];
-	result.m[1][2] = scale.y * rotateXYZ.m[1][2];
-	result.m[1][3] = 0.0f;
-
-	// 3行目: スケールZ と 回転成分
-	result.m[2][0] = scale.z * rotateXYZ.m[2][0];
-	result.m[2][1] = scale.z * rotateXYZ.m[2][1];
-	result.m[2][2] = scale.z * rotateXYZ.m[2][2];
-	result.m[2][3] = 0.0f;
-
-
-	// スケール行列
-	Matrix4x4 matScale = {
-		scale.x, 0.0f, 0.0f, 0.0f,
-		0.0f, scale.y, 0.0f, 0.0f,
-		0.0f, 0.0f, scale.z, 0.0f,
-		0.0f, 0.0f, 0.0f, 1.0f
-	};
-
-	// 平行移動行列
-	Matrix4x4 matTranslate = {
-		1.0f, 0.0f, 0.0f, 0.0f,
-		0.0f, 1.0f, 0.0f, 0.0f,
-		0.0f, 0.0f, 1.0f, 0.0f,
-		translate.x, translate.y, translate.z, 1.0f
-	};
-
-	// 行列の合成
-	Matrix4x4 matSR = Multiply(matScale, rotateXYZ);
-	Matrix4x4 matSRT = Multiply(matSR, matTranslate);
-
-	return matSRT;
-}
 
 //透視投影行列
 Matrix4x4 MakePerspectiveFovMatrix(float fovY, float aspectRatio, float nearClip, float farClip)
@@ -558,19 +460,6 @@ Matrix4x4 Inverse(const Matrix4x4& m) {
 	return result;
 }
 
-// 4x4行列の掛け算ヘルパー
-auto Multiply = [](const Matrix4x4& m1, const Matrix4x4& m2) {
-	Matrix4x4 result = {};
-	for (int r = 0; r < 4; ++r) {
-		for (int c = 0; c < 4; ++c) {
-			result.m[r][c] = m1.m[r][0] * m2.m[0][c] +
-				m1.m[r][1] * m2.m[1][c] +
-				m1.m[r][2] * m2.m[2][c] +
-				m1.m[r][3] * m2.m[3][c];
-		}
-	}
-	return result;
-	};
 
 DirectX::ScratchImage LoadTexure(const std::string& filePath)
 {
@@ -722,15 +611,6 @@ Matrix4x4 MakeRotateZMatrix(float rotateZ) {
 	result.m[0][1] = sinf(rotateZ);
 	result.m[1][0] = -sinf(rotateZ);
 	result.m[1][1] = cosf(rotateZ);
-	return result;
-}
-
-// 平行移動行列の作成
-Matrix4x4 MakeTranslateMatrix(const Vector3& translate) {
-	Matrix4x4 result = MakeIdentity4x4();
-	result.m[3][0] = translate.x;
-	result.m[3][1] = translate.y;
-	result.m[3][2] = translate.z;
 	return result;
 }
 
@@ -1727,6 +1607,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	SoundPlayWave(xAudio2.Get(), soundData1);
 
+	// WinMain 関数内（ループ手前）
+	DebugCamera debugCamera;
+	debugCamera.Initialize();
+
 	//ウインドウを表示する
 	ShowWindow(hwnd, SW_SHOW);
 
@@ -1780,6 +1664,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				OutputDebugStringA("Hit 0\n"); //出力ウィンドウに「Hit 0」と表示
 			}
 
+			debugCamera.Update(key);
 
 #ifdef USE_IMGUI
 
