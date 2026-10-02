@@ -1286,6 +1286,15 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	D3D12_BLEND_DESC blendDesc{};
 	//すべての色要素を書き込む
 	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	blendDesc.RenderTarget[0].BlendEnable = TRUE;
+	blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+	blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+
+
 
 	//Rasterizerstateの設定
 	D3D12_RASTERIZER_DESC rasterizerDesc{};
@@ -1685,6 +1694,14 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			// 3. ドラッグ（輝度を調整）
 			ImGui::DragFloat("Intensity", &directionalLightData->intensity, 0.01f, 0.0f, 10.0f);
+
+			// ImGuiのLight Settings等の近くに追加
+			ImGui::Begin("Material Settings");
+
+			// またはアルファ値（透明度）だけのスライダーを作る場合
+			ImGui::SliderFloat("Alpha", &materialData->color.w, 0.0f, 1.0f);
+
+			ImGui::End();
 
 			// 方向ベクトルの正規化処理
 			// (方向を動かした際、ベクトルの長さが1からズレると計算がおかしくなるのを防ぐ)
