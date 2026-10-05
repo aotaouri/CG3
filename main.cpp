@@ -104,12 +104,13 @@ class ResourceObject {
 public:
 	// コンストラクタ
 	ResourceObject(ID3D12Resource* resource)
-		: resource_(resource) 
-	{}
+		: resource_(resource)
+	{
+	}
 
 	// デストラクタ
 	~ResourceObject() {
-		if (resource_) {     
+		if (resource_) {
 			resource_->Release();
 		}
 	}
@@ -117,7 +118,7 @@ public:
 	ID3D12Resource* Get() const { return resource_; }
 
 private:
-	
+
 	ID3D12Resource* resource_;
 };
 
@@ -679,7 +680,7 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
 			normal.x *= -1.0f;
 			normals.push_back(normal);
 		}
-		else if (identifier == "f") 
+		else if (identifier == "f")
 		{
 			//面は三角形限定。その他は未対応
 			VertexData triangle[3];
@@ -709,7 +710,7 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
 			modelData.vertices.push_back(triangle[1]);
 			modelData.vertices.push_back(triangle[0]);
 		}
-		else if (identifier == "mtllib") 
+		else if (identifier == "mtllib")
 		{
 			// materialTemplateLibraryファイルの名前を取得する
 			std::string materialFilename;
@@ -919,7 +920,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//排他制御レベルのセット
 	hr = keyboard->SetCooperativeLevel(hwnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE | DISCL_NOWINKEY);
 	assert(SUCCEEDED(hr));
-	
+
 	//機能レベルとログ出力用の文字列
 	D3D_FEATURE_LEVEL featureLevels[] = {
 		D3D_FEATURE_LEVEL_12_2,D3D_FEATURE_LEVEL_12_1,D3D_FEATURE_LEVEL_12_0
@@ -947,7 +948,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	Log("Complete create D3D12Device!!!\n");//初期化完了のログをだす
 
 
-	
+
 	if (SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
 	{
 		//ヤバイエラー時に止まる
@@ -979,7 +980,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	}
 
 	//Textureを読んで転送する
-	DirectX::ScratchImage mipImages = LoadTexure("uvChecker.png");
+	//DirectX::ScratchImage mipImages = LoadTexure("uvChecker.png");
+	DirectX::ScratchImage mipImages = LoadTexure("resources/fence.png");
 	const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
 	Microsoft::WRL::ComPtr<ID3D12Resource> textureResource = CreateTextureResource(device.Get(), metadata);
 	UploadTextureData(textureResource.Get(), mipImages);
@@ -999,7 +1001,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 
 	//コマンドリストを生成する
-	device->CreateCommandList(0,D3D12_COMMAND_LIST_TYPE_DIRECT,commandAllocator.Get(),nullptr,IID_PPV_ARGS(&commandList));
+	device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator.Get(), nullptr, IID_PPV_ARGS(&commandList));
 	//コマンドリストの生成がうまくいかなかったので起動できない
 	assert(SUCCEEDED(hr));
 
@@ -1294,7 +1296,22 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
 	blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
 
-
+	////加算
+	//blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	//blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	//blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
+	////減算
+	//blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	//blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_REV_SUBTRACT;
+	//blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
+	////乗算
+	//blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ZERO;
+	//blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	//blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_SRC_COLOR;
+	////スクリーン
+	//blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_INV_DEST_COLOR;
+	//blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	//blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
 
 	//Rasterizerstateの設定
 	D3D12_RASTERIZER_DESC rasterizerDesc{};
@@ -1590,7 +1607,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	indexDataSprite[3] = 1; indexDataSprite[4] = 3; indexDataSprite[5] = 2;
 
 	// --- モデル用リソースを独立した変数で保持する ---
-	ModelData modelData = LoadObjFile("resources", "plane.obj");
+	ModelData modelData = LoadObjFile("resources", "fence.obj");
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResourceModel = CreateBufferResouce(device.Get(), sizeof(VertexData) * modelData.vertices.size());
 
@@ -1764,7 +1781,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 
 			//描画用のDescriptorHeapの設定
-			ID3D12DescriptorHeap* descriptorHeaps[] = { srvDescriptorHeap.Get()};
+			ID3D12DescriptorHeap* descriptorHeaps[] = { srvDescriptorHeap.Get() };
 			commandList->SetDescriptorHeaps(1, descriptorHeaps);
 			// VertexBufferViewをコマンドリストに積む
 			commandList->RSSetViewports(1, &viewport); //Viewportを設定
@@ -1829,7 +1846,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			assert(SUCCEEDED(hr));
 
 			//GPUにコマンドリストの実行を行わせる
-			ID3D12CommandList* commandLists[] = { commandList.Get()};
+			ID3D12CommandList* commandLists[] = { commandList.Get() };
 			commandQueue->ExecuteCommandLists(1, commandLists);
 			//GPUと05に画面の交換を行うように通知する
 			swapChain->Present(1, 0);
@@ -1855,7 +1872,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			hr = commandList->Reset(commandAllocator.Get(), graphicsPipelineState.Get());
 			assert(SUCCEEDED(hr));
 
-			//
+
 		}
 	}
 
