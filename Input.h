@@ -17,9 +17,19 @@ public:
 
 	void Update();
 
+	bool PushKey(BYTE keyNumber);
+
+	bool TriggerKey(BYTE keyNumber);
+
 private:
 	//キーボードデバイス
 	ComPtr<IDirectInputDevice8> keyboard;
+
+	//全キーの入力状態を取得する
+	BYTE key[256] = {};
+
+	//前回の全キーの状態
+	BYTE KeyPre[256] = {};
 
 };
 
