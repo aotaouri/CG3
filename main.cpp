@@ -16,6 +16,7 @@
 #include <dinput.h>
 #include "DebugCamera.h"
 #include "MyMath.h"
+#include "Input.h"
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"dxguid.lib")
@@ -921,6 +922,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	hr = keyboard->SetCooperativeLevel(hwnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE | DISCL_NOWINKEY);
 	assert(SUCCEEDED(hr));
 
+	//ポインタ
+	Input* input = nullptr;
+
+	//入力の初期化
+	input = new Input();
+	input->Initialize(wc.hInstance,hwnd);
+
 	//機能レベルとログ出力用の文字列
 	D3D_FEATURE_LEVEL featureLevels[] = {
 		D3D_FEATURE_LEVEL_12_2,D3D_FEATURE_LEVEL_12_1,D3D_FEATURE_LEVEL_12_0
@@ -1684,6 +1692,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			//全キーの入力状態を取得する
 			BYTE key[256] = {};
 			keyboard->GetDeviceState(sizeof(key), key);
+
+			//入力の更新
+			input->Update();
+
 			//数字の0キーが押されていたら
 			if (key[DIK_0])
 			{
@@ -1875,6 +1887,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 		}
 	}
+
+	//入力解放
+	delete input;
 
 	//COM終了処理
 	CoUninitialize();
