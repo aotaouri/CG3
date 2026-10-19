@@ -17,6 +17,7 @@
 #include "DebugCamera.h"
 #include "MyMath.h"
 #include "Input.h"
+#include "WinApp.h"
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"dxguid.lib")
@@ -860,6 +861,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		nullptr,                 // メニューハンドル
 		wc.hInstance,            // インスタントハンドル
 		nullptr);                // オプション
+
+	//ポインタ
+	WinApp* winApp = nullptr;
+
+	//WindowsAPIの初期化
+	winApp = new WinApp();
+	winApp->Initialize();
 
 	Microsoft::WRL::ComPtr<ID3D12Debug1> debugController = nullptr;
 	Microsoft::WRL::ComPtr<IDXGIAdapter4> useAdapter = nullptr;
@@ -1890,6 +1898,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	//入力解放
 	delete input;
+
+	//WindowsAPI解放
+	delete winApp;
 
 	//COM終了処理
 	CoUninitialize();
