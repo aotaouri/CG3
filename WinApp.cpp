@@ -1,16 +1,20 @@
 #include "WinApp.h"
 #include <windows.h>
 #include <cassert>
+#ifdef USE_IMGUI
 #include "externals/imgui/imgui.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+#endif
 
 LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
+#ifdef USE_IMGUI
 	if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam))
 	{
 		return true;
 	}
+#endif
 
 	// メッセージに応じてゲーム固有の処理を行う
 	switch (msg)
@@ -45,10 +49,6 @@ void WinApp::Initialize()
 
 	//ウインドウクラスを登録する
 	RegisterClass(&wc);
-
-	//クライアント領域のサイズ
-	const int32_t kClientWidth = 1280;
-	const int32_t kClientHeight = 720;
 
 	//ウインドウサイズを表す構造体にクライアント領域を入れる
 	RECT wrc = { 0,0,kClientWidth,kClientHeight };
