@@ -37,7 +37,6 @@ void WinApp::Initialize()
 	//COM初期化
 	CoInitializeEx(0, COINITBASE_MULTITHREADED);
 
-	WNDCLASS wc{};
 	//ウインドウプロシージャ
 	wc.lpfnWndProc = WindowProc;
 	//ウインドウクラス名
@@ -58,7 +57,7 @@ void WinApp::Initialize()
 
 
 	//ウインドウの生成
-	HWND hwnd = CreateWindow(
+	 hwnd = CreateWindow(
 		wc.lpszClassName,        // 利用するクラス名
 		L"CG2",                  // タイトルバーの文字
 		WS_OVERLAPPEDWINDOW,     // よく見るウインドウスタイル
