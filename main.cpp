@@ -16,6 +16,7 @@
 #include <dinput.h>
 #include "DebugCamera.h"
 #include "MyMath.h"
+#include <random>
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"dxguid.lib")
@@ -98,6 +99,22 @@ struct ModelData
 {
 	std::vector<VertexData> vertices;
 	MaterialData material;
+};
+
+struct Particle {
+	Transform transform;
+	Vector3 velocity;
+	Vector4 color;
+	float lifeTime;
+	float currentTime;
+};
+
+struct ParticleForGPU
+{
+	Matrix4x4 WVP;
+	Matrix4x4 World;
+	Vector4 color;
+
 };
 
 class ResourceObject {
@@ -807,6 +824,26 @@ void SoundPlayWave(IXAudio2* xAudio2, const SoundData& soundData)
 
 }
 
+Particle MakeNewParticle(std::mt19937& randomEngine)
+{
+	std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
+	std::uniform_real_distribution<float> distColor(0.0f, 1.0f);
+	std::uniform_real_distribution<float> distTime(1.0f, 3.0f);
+
+	Particle particle;
+	particle.transform.scale = { 1.0f,1.0f,1.0f };
+	particle.transform.rotate = { 0.0f,0.0f,0.0f, };
+	particle.transform.translate = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
+	particle.velocity = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
+
+	particle.color = {distColor(randomEngine), distColor(randomEngine), distColor(randomEngine), 1.0f };
+
+	particle.lifeTime = distTime(randomEngine);
+	particle.currentTime = 0.0f;
+
+	return particle;
+}
+
 //Transform変数を作る
 Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
 
@@ -1505,18 +1542,21 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	// ★新しく確保したバッファをMapして、頂点データの書き込み先を更新する
 	vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData));
 
-	const uint32_t kNumInstance = 10; //インスタンス数
+	const uint32_t kNumMaxInstance = 10; //インスタンス数
 	//Instancing用のTransformationMatrixリソースを作る
-	Microsoft::WRL::ComPtr<ID3D12Resource> instancingResource = CreateBufferResouce(device.Get(), sizeof(TransformationMatrix) * kNumInstance);
+	Microsoft::WRL::ComPtr<ID3D12Resource> instancingResource = CreateBufferResouce(device.Get(), sizeof(ParticleForGPU) * kNumMaxInstance);
+
+	const float kDeltaTime = 1.0f / 60.0f;
 
 	//書き込むためのアドレスを取得
-	TransformationMatrix* instancingData = nullptr;
+	ParticleForGPU* instancingData = nullptr;
 	instancingResource->Map(0, nullptr, reinterpret_cast<void**>(&instancingData));
 	//単位行列を書きこんでおく
-	for (uint32_t index = 0; index < kNumInstance; ++index)
+	for (uint32_t index = 0; index < kNumMaxInstance; ++index)
 	{
 		instancingData[index].WVP = MakeIdentity4x4();
 		instancingData[index].World = MakeIdentity4x4();
+		instancingData[index].color = { 1.0f, 1.0f, 1.0f, 1.0f };
 	}
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC instancingSrvDesc{};
@@ -1525,18 +1565,22 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	instancingSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 	instancingSrvDesc.Buffer.FirstElement = 0;
 	instancingSrvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-	instancingSrvDesc.Buffer.NumElements = kNumInstance;
-	instancingSrvDesc.Buffer.StructureByteStride = sizeof(TransformationMatrix);
+	instancingSrvDesc.Buffer.NumElements = kNumMaxInstance;
+	instancingSrvDesc.Buffer.StructureByteStride = sizeof(ParticleForGPU);
 	D3D12_CPU_DESCRIPTOR_HANDLE instancingSrvHandoleCPU = GetCPUDescriptorHandle(srvDescriptorHeap.Get(), descriptorSizeSRV, 3);
 	D3D12_GPU_DESCRIPTOR_HANDLE instancingSrvHandoleGPU = GetGPUDescriptorHandle(srvDescriptorHeap.Get(), descriptorSizeSRV, 3);
 	device->CreateShaderResourceView(instancingResource.Get(), &instancingSrvDesc, instancingSrvHandoleCPU);
 
-	Transform transforms[kNumInstance];
-	for (uint32_t index = 0; index < kNumInstance; ++index)
+	Particle particles[kNumMaxInstance];
+
+	std::random_device seedGenerator;
+	std::mt19937 randomEngine(seedGenerator());
+
+	std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
+
+	for (uint32_t index = 0; index < kNumMaxInstance; ++index)
 	{
-		transforms[index].scale = { 1.0f,1.0f,1.0f };
-		transforms[index].rotate = { 0.0f,0.0f,0.0f, };
-		transforms[index].translate = { index * 0.1f, index * 0.1f, index * 0.0f };
+		particles[index] = MakeNewParticle(randomEngine);
 	}
 
 	const float pi = 3.14159265f;
@@ -1680,6 +1724,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	SoundPlayWave(xAudio2.Get(), soundData1);
 
+
 	// WinMain 関数内（ループ手前）
 	DebugCamera debugCamera;
 	debugCamera.Initialize();
@@ -1728,16 +1773,28 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			Matrix4x4 viewProjectionMatrix = Multiply(viewMatrix, projectionMatrix);
 
-			for (uint32_t index = 0; index < kNumInstance; ++index)
-			{
-				Matrix4x4 instanceWorld = MakeAffineMatrix(
-					transforms[index].scale,
-					transforms[index].rotate,
-					transforms[index].translate);
+			uint32_t numInstance = 0;   // 描画すべきインスタンス数
 
-				instancingData[index].WVP = Multiply(instanceWorld, viewProjectionMatrix);
-				instancingData[index].World = instanceWorld;
+			for (uint32_t index = 0; index < kNumMaxInstance; ++index)
+			{
+				if (particles[index].lifeTime <= particles[index].currentTime) {
+					continue;
+				}
+
+				particles[index].transform.translate += particles[index].velocity * kDeltaTime;
+				particles[index].currentTime += kDeltaTime;
+
+				Matrix4x4 instanceWorld = MakeAffineMatrix(
+					particles[index].transform.scale,
+					particles[index].transform.rotate,
+					particles[index].transform.translate);
+
+				instancingData[numInstance].WVP = Multiply(instanceWorld, viewProjectionMatrix);
+				instancingData[numInstance].World = instanceWorld;
+				instancingData[numInstance].color = particles[index].color;
+				++numInstance;
 			}
+			
 
 			//キーボード情報の取得開始
 			keyboard->Acquire();
@@ -1886,9 +1943,11 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			//commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
 			commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
 			commandList->SetGraphicsRootConstantBufferView(3, directionalLightResource->GetGPUVirtualAddress());
-
-			// 描画実行
-			commandList->DrawInstanced(UINT(modelData.vertices.size()), kNumInstance, 0, 0);
+			if (numInstance > 0)
+			{
+				// 描画実行
+				commandList->DrawInstanced(UINT(modelData.vertices.size()), numInstance, 0, 0);
+			}
 
 #ifdef USE_IMGUI
 			//実際のcommandListのImGuiの描画コマンドを積む

@@ -30,7 +30,7 @@ PixelShaderOutput main(VertexShaderOutput input)
     float4 textureColor = gTexture.Sample(gSampler, transformedUV.xy);
     
     
-    output.color = gmaterial.color * textureColor;
+    output.color = gmaterial.color * textureColor*input.color;
     if (output.color.a == 0.0f)
     {
         discard;
