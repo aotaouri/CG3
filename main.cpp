@@ -1660,12 +1660,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//ウインドウの×が押されるまでループ
 	while (msg.message != WM_QUIT)
 	{
-		//Windowにメッセージが来てたら最優先で処理させる
-		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
+		//Windowsのメッセージ処理
+		if (winApp->ProcessMessage())
+		{
+			//ゲームループを抜ける
+			break;
 		}
-		else {
+		
 			//ゲームの処理
 			//transform.rotate.y += 0.03f;
 			Matrix4x4 worldMatrix = MakeAffineMatrix(transform.scale, transform.rotate, transform.translate);
@@ -1893,7 +1894,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			assert(SUCCEEDED(hr));
 
 
-		}
+		
 	}
 
 	//入力解放

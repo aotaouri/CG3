@@ -15,6 +15,9 @@ public:
 	//終了
 	void Finalize();
 
+	//メッセージの処理
+	bool ProcessMessage();
+
 	HWND GetHwnd() const { return hwnd; }
 
 	//getter
