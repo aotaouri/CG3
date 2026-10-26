@@ -935,7 +935,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	//入力の初期化
 	input = new Input();
-	input->Initialize(winApp->GetHInstance(), winApp->GetHwnd());
+	input->Initialize(winApp);
 
 	//機能レベルとログ出力用の文字列
 	D3D_FEATURE_LEVEL featureLevels[] = {
@@ -1899,9 +1899,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//入力解放
 	delete input;
 
-	//WindowsAPI解放
-	delete winApp;
-
 	//COM終了処理
 	CoUninitialize();
 
@@ -1922,8 +1919,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 #endif
 
 	CloseHandle(fenceEvent);
-	CloseWindow(hwnd);
-	CoUninitialize();
+	//WindowsAPIの終了処理
+	winApp->Finalize();
+
+	//WindowsAPI解放
+	delete winApp;
+	winApp = nullptr;
 
 	return 0;
 }

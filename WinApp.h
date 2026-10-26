@@ -12,6 +12,9 @@ public:
 
 	void Update();
 
+	//終了
+	void Finalize();
+
 	HWND GetHwnd() const { return hwnd; }
 
 	//getter
