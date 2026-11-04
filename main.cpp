@@ -18,6 +18,7 @@
 #include "MyMath.h"
 #include "Input.h"
 #include "WinApp.h"
+#include "DirectXCommon.h"
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"dxguid.lib")
@@ -869,49 +870,57 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	winApp = new WinApp();
 	winApp->Initialize();
 
-	Microsoft::WRL::ComPtr<ID3D12Debug1> debugController = nullptr;
-	Microsoft::WRL::ComPtr<IDXGIAdapter4> useAdapter = nullptr;
-	Microsoft::WRL::ComPtr<ID3D12Device> device = nullptr;
-	Microsoft::WRL::ComPtr<ID3D12InfoQueue> infoQueue = nullptr;
-	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList = nullptr;
+	//ポインタ
+	DirectXCommon* dxCommon = nullptr;
+	//DirectXの初期化
+	dxCommon = new DirectXCommon();
+	dxCommon->Initialize(winApp);
 
-	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
-	{
-		//デバックレイヤーを有効化する
-		debugController->EnableDebugLayer();
-		//さらにGPU側でもチェックを行うようにする
-		debugController->SetEnableGPUBasedValidation(TRUE);
-	}
+	//Microsoft::WRL::ComPtr<ID3D12Debug1> debugController = nullptr;
+	//Microsoft::WRL::ComPtr<IDXGIAdapter4> useAdapter = nullptr;
+	//Microsoft::WRL::ComPtr<ID3D12Device> device = nullptr;
+	//Microsoft::WRL::ComPtr<ID3D12InfoQueue> infoQueue = nullptr;
+	//Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList = nullptr;
 
-	//DXGIファクトリーの生成
-	Microsoft::WRL::ComPtr<IDXGIFactory7> dxgiFactory = nullptr;
-	//HRESULTはWindows系のエラーコードであり、
-	//関数が成功したかどうかをSUCCEEDEDマクロで判定できる
-	HRESULT hr = CreateDXGIFactory(IID_PPV_ARGS(&dxgiFactory));
+	//if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
+	//{
+	//	//デバックレイヤーを有効化する
+	//	debugController->EnableDebugLayer();
+	//	//さらにGPU側でもチェックを行うようにする
+	//	debugController->SetEnableGPUBasedValidation(TRUE);
+	//}
 
-	//初期化の根本的な部分でエラーが出た場合はプログラムが間違っているか、どうにもできない場合が多いのでassertにしておく
-	assert(SUCCEEDED(hr));
+	////DXGIファクトリーの生成
+	//Microsoft::WRL::ComPtr<IDXGIFactory7> dxgiFactory = nullptr;
+	////HRESULTはWindows系のエラーコードであり、
+	////関数が成功したかどうかをSUCCEEDEDマクロで判定できる
+	//HRESULT hr = CreateDXGIFactory(IID_PPV_ARGS(&dxgiFactory));
 
-	//良い順にアダプタを頼む
-	for (UINT i = 0; dxgiFactory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&useAdapter)) != DXGI_ERROR_NOT_FOUND; ++i)
-	{
-		//アダプターの情報を取得する
-		DXGI_ADAPTER_DESC3 adapterDesc{};
-		hr = useAdapter->GetDesc3(&adapterDesc);
-		assert(SUCCEEDED(hr));//取得できないのは一大事
-		//ソフトウェアアダプタでなければ採用!
-		if (!(adapterDesc.Flags & DXGI_ADAPTER_FLAG3_SOFTWARE))
-		{
-			//採用したアダプタの情報をログに出力。wstringの方なので注意
-			Log(ConvertString(std::format(L"Use Adapter:{}\n", adapterDesc.Description)));
-			break;
-		}
+	////初期化の根本的な部分でエラーが出た場合はプログラムが間違っているか、どうにもできない場合が多いのでassertにしておく
+	//assert(SUCCEEDED(hr));
 
-		useAdapter = nullptr;//ソフトウェアアダプタの場合は見なかったことにする
+	////良い順にアダプタを頼む
+	//for (UINT i = 0; dxgiFactory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&useAdapter)) != DXGI_ERROR_NOT_FOUND; ++i)
+	//{
+	//	//アダプターの情報を取得する
+	//	DXGI_ADAPTER_DESC3 adapterDesc{};
+	//	hr = useAdapter->GetDesc3(&adapterDesc);
+	//	assert(SUCCEEDED(hr));//取得できないのは一大事
+	//	//ソフトウェアアダプタでなければ採用!
+	//	if (!(adapterDesc.Flags & DXGI_ADAPTER_FLAG3_SOFTWARE))
+	//	{
+	//		//採用したアダプタの情報をログに出力。wstringの方なので注意
+	//		Log(ConvertString(std::format(L"Use Adapter:{}\n", adapterDesc.Description)));
+	//		break;
+	//	}
 
-	}
-	//適切なアダプタが見つからなかったので起動できない
-	assert(useAdapter != nullptr);
+	//	useAdapter = nullptr;//ソフトウェアアダプタの場合は見なかったことにする
+
+	//}
+	////適切なアダプタが見つからなかったので起動できない
+	//assert(useAdapter != nullptr);
+
+	HRESULT hr = S_OK;
 
 	// DirectInputの初期化
 	IDirectInput8* directInput = nullptr;
@@ -935,7 +944,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	//入力の初期化
 	input = new Input();
-	input->Initialize(winApp);
+	input->Initialize(winApp); 
+
+#if 0  
 
 	//機能レベルとログ出力用の文字列
 	D3D_FEATURE_LEVEL featureLevels[] = {
@@ -1897,11 +1908,25 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		
 	}
 
+#endif
+
+	ShowWindow(winApp->GetHwnd(), SW_SHOW);
+	while (true) {
+		if (winApp->ProcessMessage()) {
+			break;
+		}
+	}
+
 	//入力解放
 	delete input;
 
+	//DirectXの初期化
+	delete dxCommon;
+
 	//COM終了処理
 	CoUninitialize();
+
+#if 0
 
 	xAudio2.Reset();
 	SoundUnload(&soundData1);
@@ -1920,6 +1945,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 #endif
 
 	CloseHandle(fenceEvent);
+
+
+#endif
+
 	//WindowsAPIの終了処理
 	winApp->Finalize();
 
