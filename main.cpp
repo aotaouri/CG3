@@ -1915,6 +1915,11 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		if (winApp->ProcessMessage()) {
 			break;
 		}
+
+		dxCommon->PreDraw();
+		// ここに描画コマンド (PSO / RootSignature のセット、Draw など)
+		dxCommon->PostDraw();
+
 	}
 
 	//入力解放

@@ -16,6 +16,13 @@ public:
     ID3D12Device* GetDevice() const { return device_.Get(); }
     ID3D12GraphicsCommandList* GetCommandList() const { return commandList_.Get(); }
 
+    //描画前処理
+    void PreDraw();
+
+    //描画後処理
+    void PostDraw();
+
+
 private:
     // 初期化のサブ関数群
     void InitializeDevice();
@@ -68,4 +75,5 @@ private:
     Microsoft::WRL::ComPtr<IDxcUtils> dxcUtils_;
     Microsoft::WRL::ComPtr<IDxcCompiler3> dxcCompiler_;
     Microsoft::WRL::ComPtr<IDxcIncludeHandler> includeHandler_;
+
 };
