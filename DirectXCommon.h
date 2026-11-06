@@ -5,6 +5,7 @@
 #include <dxcapi.h>
 #include <cstdint>
 #include <string>
+#include <chrono>
 
 #include "externals/DirectXTex/DirectXTex.h" 
 
@@ -59,6 +60,11 @@ private:
     void InitializeDXCCompiler();
     void InitializeImGui();
 
+    //FPS固定初期化
+    void InitializeFixFPS();
+    //FPS固定更新
+    void UpdateFixFPS();
+
 private:
     WinApp* winApp_ = nullptr;
 
@@ -96,4 +102,8 @@ private:
     Microsoft::WRL::ComPtr<IDxcUtils> dxcUtils_;
     Microsoft::WRL::ComPtr<IDxcCompiler3> dxcCompiler_;
     Microsoft::WRL::ComPtr<IDxcIncludeHandler> includeHandler_;
+
+    //記録時間(FPS固定用)
+    std::chrono::steady_clock::time_point reference_;
+
 };

@@ -3,6 +3,7 @@
 #include "StringUtility.h"
 #include <cassert>
 #include <format>
+#include <thread>
 
 #ifdef USE_IMGUI
 #include "externals/imgui/imgui.h"
@@ -19,6 +20,9 @@ using namespace Microsoft::WRL;
 
 void DirectXCommon::Initialize(WinApp* winApp)
 {
+    // FPS固定初期化
+    InitializeFixFPS();
+
     assert(winApp);
     winApp_ = winApp;
 
@@ -253,6 +257,12 @@ void DirectXCommon::InitializeImGui()
 #endif
 }
 
+void DirectXCommon::InitializeFixFPS()
+{
+    // 現在時間を記録する
+    reference_ = std::chrono::steady_clock::now();
+}
+
 void DirectXCommon::PreDraw()
 {
     // 1. バックバッファの番号取得
@@ -320,6 +330,9 @@ void DirectXCommon::PostDraw()
         fence_->SetEventOnCompletion(fenceValue_, fenceEvent_);
         WaitForSingleObject(fenceEvent_, INFINITE);
     }
+
+    // FPS固定
+    UpdateFixFPS();
 
     // 次フレーム用にコマンドリストをリセット
     hr = commandAllocator_->Reset();
@@ -480,4 +493,31 @@ DirectX::ScratchImage DirectXCommon::LoadTexture(const std::string& filePath)
 
     // ミップマップ付きのデータを返す
     return mipImages;
+}
+
+void DirectXCommon::UpdateFixFPS()
+{
+    // 1/60秒ぴったりの時間
+    const std::chrono::microseconds kMinTime(uint64_t(1000000.0f / 60.0f));
+    // 1/60秒よりわずかに短い時間
+    const std::chrono::microseconds kMinCheckTime(uint64_t(1000000.0f / 65.0f));
+
+    //現在時間を取得する
+    std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+    //前回記録からの経過時間を取得する  
+    std::chrono::microseconds elapsed = std::chrono::duration_cast<std::chrono::microseconds>(now - reference_);
+
+
+    //1/60(よりわずかに短い時間)経っていない場合
+    if (elapsed < kMinTime)
+    {
+        //1/60秒経過するまで微小なスリープを繰り返す
+        while (std::chrono::steady_clock::now()-reference_<kMinTime)
+        {
+            //1マイクロ秒スリープ
+            std::this_thread::sleep_for(std::chrono::microseconds(1));
+        }
+    }
+    // 現在の時間を記録する
+    reference_ = std::chrono::steady_clock::now();
 }
