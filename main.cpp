@@ -864,7 +864,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//ウインドウプロシージャ
 	wc.lpfnWndProc = WindowProc;
 	//ウインドウクラス名
-	wc.lpszClassName = L"CG2WindowClass";
+	wc.lpszClassName = L"CG3WindowClass";
 	//インスタントハンドル
 	wc.hInstance = GetModuleHandle(nullptr);
 	//カーソル
@@ -886,7 +886,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//ウインドウの生成
 	HWND hwnd = CreateWindow(
 		wc.lpszClassName,        // 利用するクラス名
-		L"CG2",                  // タイトルバーの文字
+		L"LE2C_01_アオタオウリ",                  // タイトルバーの文字
 		WS_OVERLAPPEDWINDOW,     // よく見るウインドウスタイル
 		CW_USEDEFAULT,           // 表示X座標
 		CW_USEDEFAULT,           // 表示Y座標
@@ -1017,8 +1017,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	}
 
 	//Textureを読んで転送する
-	DirectX::ScratchImage mipImages = LoadTexure("uvChecker.png");
+	//DirectX::ScratchImage mipImages = LoadTexure("uvChecker.png");
 	//DirectX::ScratchImage mipImages = LoadTexure("resources/fence.png");
+	DirectX::ScratchImage mipImages = LoadTexure("resources/circle.png");
 	const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
 	Microsoft::WRL::ComPtr<ID3D12Resource> textureResource = CreateTextureResource(device.Get(), metadata);
 	UploadTextureData(textureResource.Get(), mipImages);
@@ -1339,7 +1340,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	blendDesc.RenderTarget[0].BlendEnable = TRUE;
 	blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
 	blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-	blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
 	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
 	blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
 	blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
@@ -1400,7 +1401,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//Depthの機能を有効する
 	depthStencilDesc.DepthEnable = true;
 	//書き込みします
-	depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
 	//比較関数はLessEqual。つまり、近ければ録画される
 	depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 
