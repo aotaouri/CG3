@@ -12,7 +12,7 @@ class DirectXCommon
 public:
     void Initialize(WinApp* winApp);
 
-    // ゲッター群（描画ループ等で必要に応じて使用）
+    // ゲッター群
     ID3D12Device* GetDevice() const { return device_.Get(); }
     ID3D12GraphicsCommandList* GetCommandList() const { return commandList_.Get(); }
 
@@ -75,5 +75,4 @@ private:
     Microsoft::WRL::ComPtr<IDxcUtils> dxcUtils_;
     Microsoft::WRL::ComPtr<IDxcCompiler3> dxcCompiler_;
     Microsoft::WRL::ComPtr<IDxcIncludeHandler> includeHandler_;
-
 };

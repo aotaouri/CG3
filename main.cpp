@@ -1006,12 +1006,17 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		infoQueue->Release();
 	}
 
+#endif
+
 	//Textureを読んで転送する
 	//DirectX::ScratchImage mipImages = LoadTexure("uvChecker.png");
 	DirectX::ScratchImage mipImages = LoadTexure("resources/fence.png");
 	const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
-	Microsoft::WRL::ComPtr<ID3D12Resource> textureResource = CreateTextureResource(device.Get(), metadata);
+	ID3D12Device* device = dxCommon->GetDevice();
+	Microsoft::WRL::ComPtr<ID3D12Resource> textureResource = CreateTextureResource(device, metadata);
 	UploadTextureData(textureResource.Get(), mipImages);
+
+#if 0 
 
 	//コマンドキューを生成する
 	Microsoft::WRL::ComPtr<ID3D12CommandQueue> commandQueue = nullptr;
