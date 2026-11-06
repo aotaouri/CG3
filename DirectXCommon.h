@@ -4,6 +4,10 @@
 #include <wrl.h>
 #include <dxcapi.h>
 #include <cstdint>
+#include <string>
+
+#include "externals/DirectXTex/DirectXTex.h" 
+
 
 class WinApp;
 
@@ -21,6 +25,22 @@ public:
 
     //描画後処理
     void PostDraw();
+
+    //シェーダーのコンパイル
+    Microsoft::WRL::ComPtr<IDxcBlob> CompileShader(const std::wstring& filePath,const wchar_t* profile);
+
+    //バッファーリソースの生成
+    Microsoft::WRL::ComPtr<ID3D12Resource> CreateBufferResource(size_t sizeBytes);
+
+    //テクスチャリソースの生成
+    Microsoft::WRL::ComPtr<ID3D12Resource> CreateTextureResource(const DirectX::TexMetadata& metadata);
+
+    //テクスチャデータの転送
+    void UploadTextureData(const Microsoft::WRL::ComPtr<ID3D12Resource>& texture, const DirectX::ScratchImage& mipImages);
+
+    //テクスチャファイルの読み込み
+    static DirectX::ScratchImage LoadTexture(const std::string& filePath);
+
 
 
 private:
