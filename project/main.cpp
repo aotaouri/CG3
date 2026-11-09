@@ -119,6 +119,8 @@ public:
 		}
 	}
 
+
+
 	ID3D12Resource* Get() const { return resource_; }
 
 private:
