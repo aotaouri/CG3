@@ -14,12 +14,12 @@
 #include <xaudio2.h>
 #include "externals/DirectXTex/DirectXTex.h"
 #include <dinput.h>
-#include "DebugCamera.h"
-#include "MyMath.h"
-#include "Input.h"
-#include "WinApp.h"
-#include "DirectXCommon.h"
-#include "D3DResourceLeakChecker.h"
+#include "engine/3d/DebugCamera.h"
+#include "engine/math/MyMath.h"
+#include "engine/io/Input.h"
+#include "engine/base/WinApp.h"
+#include "engine/base/DirectXCommon.h"
+#include "engine/base/D3DResourceLeakChecker.h"
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"dxguid.lib")
@@ -935,7 +935,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 
 	//Textureを読んで転送する
-	DirectX::ScratchImage mipImages = LoadTexure("uvChecker.png");
+	DirectX::ScratchImage mipImages = LoadTexure("resources/uvChecker.png");
 	//DirectX::ScratchImage mipImages = DirectXCommon::LoadTexture("resources/fence.png");
 	const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
 	ID3D12Device* device = dxCommon->GetDevice();
@@ -979,7 +979,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	const uint32_t descriptorSizeSRV = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	//2枚目のTextureを読んで転送する
-	DirectX::ScratchImage mipImage2 = DirectXCommon::LoadTexture("monsterBall.png");
+	DirectX::ScratchImage mipImage2 = DirectXCommon::LoadTexture("resources/monsterBall.png");
 	const DirectX::TexMetadata& metadata2 = mipImage2.GetMetadata();
 	Microsoft::WRL::ComPtr<ID3D12Resource> textureResource2 = dxCommon->CreateTextureResource(metadata2);
 	dxCommon->UploadTextureData(textureResource2, mipImage2);
@@ -1166,12 +1166,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
 
 	//Shaderをコンパイルする
-	Microsoft::WRL::ComPtr<IDxcBlob> vertexShaderBlob = dxCommon->CompileShader(L"Object3D.VS.hlsl",
-		L"vs_6_0");
+	Microsoft::WRL::ComPtr<IDxcBlob> vertexShaderBlob = dxCommon->CompileShader(L"resources/shaders/Object3d.VS.hlsl", L"vs_6_0");
 	assert(vertexShaderBlob != nullptr);
 
-	Microsoft::WRL::ComPtr<IDxcBlob> pixelShaderBlob = dxCommon->CompileShader(L"Object3D.PS.hlsl",
-		L"ps_6_0");
+	Microsoft::WRL::ComPtr<IDxcBlob> pixelShaderBlob = dxCommon->CompileShader(L"resources/shaders/Object3d.PS.hlsl", L"ps_6_0");
 	assert(pixelShaderBlob != nullptr);
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicsPipelineStateDesc{};

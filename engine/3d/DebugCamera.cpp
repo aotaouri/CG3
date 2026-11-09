@@ -1,5 +1,5 @@
 #include "DebugCamera.h"
-#include "MyMath.h"
+#include "engine/math/MyMath.h"
 #define DIRECTINPUT_VERSION 0x0800
 #include <dinput.h>
 #include <windows.h>
