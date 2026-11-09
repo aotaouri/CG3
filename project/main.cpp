@@ -863,50 +863,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	dxCommon = new DirectXCommon();
 	dxCommon->Initialize(winApp);
 
-	//Microsoft::WRL::ComPtr<ID3D12Debug1> debugController = nullptr;
-	//Microsoft::WRL::ComPtr<IDXGIAdapter4> useAdapter = nullptr;
-	//Microsoft::WRL::ComPtr<ID3D12Device> device = nullptr;
-	//Microsoft::WRL::ComPtr<ID3D12InfoQueue> infoQueue = nullptr;
-	//Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList = nullptr;
-
-	//if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
-	//{
-	//	//デバックレイヤーを有効化する
-	//	debugController->EnableDebugLayer();
-	//	//さらにGPU側でもチェックを行うようにする
-	//	debugController->SetEnableGPUBasedValidation(TRUE);
-	//}
-
-	////DXGIファクトリーの生成
-	//Microsoft::WRL::ComPtr<IDXGIFactory7> dxgiFactory = nullptr;
-	////HRESULTはWindows系のエラーコードであり、
-	////関数が成功したかどうかをSUCCEEDEDマクロで判定できる
-	//HRESULT hr = CreateDXGIFactory(IID_PPV_ARGS(&dxgiFactory));
-
-	////初期化の根本的な部分でエラーが出た場合はプログラムが間違っているか、どうにもできない場合が多いのでassertにしておく
-	//assert(SUCCEEDED(hr));
-
-	////良い順にアダプタを頼む
-	//for (UINT i = 0; dxgiFactory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&useAdapter)) != DXGI_ERROR_NOT_FOUND; ++i)
-	//{
-	//	//アダプターの情報を取得する
-	//	DXGI_ADAPTER_DESC3 adapterDesc{};
-	//	hr = useAdapter->GetDesc3(&adapterDesc);
-	//	assert(SUCCEEDED(hr));//取得できないのは一大事
-	//	//ソフトウェアアダプタでなければ採用!
-	//	if (!(adapterDesc.Flags & DXGI_ADAPTER_FLAG3_SOFTWARE))
-	//	{
-	//		//採用したアダプタの情報をログに出力。wstringの方なので注意
-	//		Log(ConvertString(std::format(L"Use Adapter:{}\n", adapterDesc.Description)));
-	//		break;
-	//	}
-
-	//	useAdapter = nullptr;//ソフトウェアアダプタの場合は見なかったことにする
-
-	//}
-	////適切なアダプタが見つからなかったので起動できない
-	//assert(useAdapter != nullptr);
-
 	HRESULT hr = S_OK;
 
 	// DirectInputの初期化
@@ -1140,23 +1096,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
 	blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
 	blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
-
-	////加算
-	//blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-	//blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-	//blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
-	////減算
-	//blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-	//blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_REV_SUBTRACT;
-	//blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
-	////乗算
-	//blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ZERO;
-	//blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-	//blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_SRC_COLOR;
-	////スクリーン
-	//blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_INV_DEST_COLOR;
-	//blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-	//blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
 
 	//Rasterizerstateの設定
 	D3D12_RASTERIZER_DESC rasterizerDesc{};
