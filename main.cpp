@@ -17,6 +17,10 @@
 #include "DebugCamera.h"
 #include "MyMath.h"
 #include <random>
+#include <numbers>
+#include <list>
+
+
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"dxguid.lib")
@@ -179,6 +183,26 @@ struct SoundData
 	BYTE* pBuffer;
 	//バッファのサイズ
 	unsigned int bufferSize;
+};
+
+struct Emitter
+{
+	Transform transform;
+	uint32_t count;
+	float frequency;
+	float frequencyTime;
+};
+
+struct AABB {
+	Vector3 min;   // 最小点
+	Vector3 max;   // 最大点
+};
+
+struct AccelerationField
+{
+	Vector3 acceleration;
+	AABB area;
+
 };
 
 std::wstring ConvertString(const std::string& str) {
@@ -824,7 +848,13 @@ void SoundPlayWave(IXAudio2* xAudio2, const SoundData& soundData)
 
 }
 
-Particle MakeNewParticle(std::mt19937& randomEngine)
+bool IsCollision(const AABB& aabb, const Vector3& point) {
+	return (aabb.min.x <= point.x && point.x <= aabb.max.x) &&
+		(aabb.min.y <= point.y && point.y <= aabb.max.y) &&
+		(aabb.min.z <= point.z && point.z <= aabb.max.z);
+}
+
+Particle MakeNewParticle(std::mt19937& randomEngine, const Vector3& translate)
 {
 	std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
 	std::uniform_real_distribution<float> distColor(0.0f, 1.0f);
@@ -833,7 +863,14 @@ Particle MakeNewParticle(std::mt19937& randomEngine)
 	Particle particle;
 	particle.transform.scale = { 1.0f,1.0f,1.0f };
 	particle.transform.rotate = { 0.0f,0.0f,0.0f, };
-	particle.transform.translate = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
+
+	// 発生位置 = Emitter の位置 + ランダムなずれ
+	Vector3 randomTranslate{ distribution(randomEngine), distribution(randomEngine), distribution(randomEngine) };
+	particle.transform.translate = {
+	translate.x + randomTranslate.x,
+	translate.y + randomTranslate.y,
+	translate.z + randomTranslate.z };
+
 	particle.velocity = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
 
 	particle.color = {distColor(randomEngine), distColor(randomEngine), distColor(randomEngine), 1.0f };
@@ -844,10 +881,24 @@ Particle MakeNewParticle(std::mt19937& randomEngine)
 	return particle;
 }
 
+std::list<Particle> Emit(const Emitter& emitter, std::mt19937& randomEngine)
+{
+
+	std::list<Particle> particles;
+	for (uint32_t count = 0; count < emitter.count; ++count) {
+		particles.push_back(MakeNewParticle(randomEngine, emitter.transform.translate));
+	}
+	return particles;
+}
+
+
 //Transform変数を作る
 Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
 
-Transform cameraTransorm{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,-5.0f} };
+Transform cameraTransorm{
+	{ 1.0f, 1.0f, 1.0f },
+	{ -std::numbers::pi_v<float> / 3.0f, std::numbers::pi_v<float>, 0.0f },
+	{ 0.0f, 23.0f, 10.0f } };
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
@@ -1365,7 +1416,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//Rasterizerstateの設定
 	D3D12_RASTERIZER_DESC rasterizerDesc{};
 	//裏面(時計回り)を表示しない
-	rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
+	rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
 	//三角形の中を塗りつぶす
 	rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
 
@@ -1543,7 +1594,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	// ★新しく確保したバッファをMapして、頂点データの書き込み先を更新する
 	vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData));
 
-	const uint32_t kNumMaxInstance = 10; //インスタンス数
+	const uint32_t kNumMaxInstance = 100;//インスタンス数
 	//Instancing用のTransformationMatrixリソースを作る
 	Microsoft::WRL::ComPtr<ID3D12Resource> instancingResource = CreateBufferResouce(device.Get(), sizeof(ParticleForGPU) * kNumMaxInstance);
 
@@ -1572,17 +1623,26 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	D3D12_GPU_DESCRIPTOR_HANDLE instancingSrvHandoleGPU = GetGPUDescriptorHandle(srvDescriptorHeap.Get(), descriptorSizeSRV, 3);
 	device->CreateShaderResourceView(instancingResource.Get(), &instancingSrvDesc, instancingSrvHandoleCPU);
 
-	Particle particles[kNumMaxInstance];
-
 	std::random_device seedGenerator;
 	std::mt19937 randomEngine(seedGenerator());
 
 	std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
 
-	for (uint32_t index = 0; index < kNumMaxInstance; ++index)
-	{
-		particles[index] = MakeNewParticle(randomEngine);
-	}
+	std::list<Particle> particles;
+
+	AccelerationField accelerationField;
+	accelerationField.acceleration = { 15.0f, 0.0f, 0.0f };
+	accelerationField.area.min = { -1.0f, -1.0f, -1.0f };
+	accelerationField.area.max = { 1.0f,  1.0f,  1.0f };
+
+	Emitter emitter{};
+	emitter.count = 3;
+	emitter.frequency = 0.5f;
+	emitter.frequencyTime = 0.0f;
+	emitter.transform.translate = { 0.0f, 0.0f, 0.0f };
+	emitter.transform.rotate = { 0.0f, 0.0f, 0.0f };
+	emitter.transform.scale = { 1.0f, 1.0f, 1.0f };
+
 
 	const float pi = 3.14159265f;
 
@@ -1652,6 +1712,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	}
 
 	bool useMonsterBall = true;
+
+	bool useBillboard = true;
 
 	//ビューポート
 	D3D12_VIEWPORT viewport{};
@@ -1776,26 +1838,54 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			uint32_t numInstance = 0;   // 描画すべきインスタンス数
 
-			for (uint32_t index = 0; index < kNumMaxInstance; ++index)
+			Matrix4x4 backToFrontMatrix = MakeRotateYMatrix(std::numbers::pi_v<float>);
+
+			Matrix4x4 billboardMatrix = Multiply(backToFrontMatrix, cameraMatrix);
+			billboardMatrix.m[3][0] = 0.0f;
+			billboardMatrix.m[3][1] = 0.0f;
+			billboardMatrix.m[3][2] = 0.0f;
+
+			if (!useBillboard) {
+				billboardMatrix = MakeIdentity4x4();
+			}
+
+
+			emitter.frequencyTime += kDeltaTime;
+			if (emitter.frequency <= emitter.frequencyTime)
 			{
-				if (particles[index].lifeTime <= particles[index].currentTime) {
+				particles.splice(particles.end(), Emit(emitter, randomEngine));
+				emitter.frequencyTime -= emitter.frequency;
+			}
+
+			for (std::list<Particle>::iterator particleIterator = particles.begin();
+				particleIterator != particles.end(); ) {
+
+				// 寿命が尽きたら list から削除
+				if ((*particleIterator).lifeTime <= (*particleIterator).currentTime) {
+					particleIterator = particles.erase(particleIterator);
 					continue;
 				}
 
-				particles[index].transform.translate += particles[index].velocity * kDeltaTime;
-				particles[index].currentTime += kDeltaTime;
+				// Field の範囲内の Particle には加速度を適用する
+				if (IsCollision(accelerationField.area, (*particleIterator).transform.translate)) {
+					(*particleIterator).velocity += accelerationField.acceleration * kDeltaTime;
+				}
 
-				Matrix4x4 instanceWorld = MakeAffineMatrix(
-					particles[index].transform.scale,
-					particles[index].transform.rotate,
-					particles[index].transform.translate);
+				(*particleIterator).transform.translate += (*particleIterator).velocity * kDeltaTime;
+				(*particleIterator).currentTime += kDeltaTime;
 
-				instancingData[numInstance].WVP = Multiply(instanceWorld, viewProjectionMatrix);
-				instancingData[numInstance].World = instanceWorld;
-				instancingData[numInstance].color = particles[index].color;
-				++numInstance;
+				if (numInstance < kNumMaxInstance) {
+					Matrix4x4 scaleMatrix = MakeScaleMatrix((*particleIterator).transform.scale);
+					Matrix4x4 translateMatrix = MakeTranslateMatrix((*particleIterator).transform.translate);
+					Matrix4x4 instanceWorld = Multiply(scaleMatrix, Multiply(billboardMatrix, translateMatrix));
+
+					instancingData[numInstance].WVP = Multiply(instanceWorld, viewProjectionMatrix);
+					instancingData[numInstance].World = instanceWorld;
+					instancingData[numInstance].color = (*particleIterator).color;
+					++numInstance;
+				}
+				++particleIterator;   // ここで進める(for の () 内では進めない)
 			}
-			
 
 			//キーボード情報の取得開始
 			keyboard->Acquire();
@@ -1816,6 +1906,15 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			ImGui_ImplWin32_NewFrame();
 			ImGui::NewFrame();
 			ImGui::Checkbox("useMonsterBall", &useMonsterBall);
+			ImGui::Checkbox("useBillboard", &useBillboard);
+
+			if (ImGui::Button("Add Particle"))
+			{
+				particles.splice(particles.end(), Emit(emitter, randomEngine));
+			}
+
+			ImGui::DragFloat3("EmitterTranslate", &emitter.transform.translate.x, 0.01f, -100.0f, 100.0f);
+
 			ImGui::SliderAngle("Rotate Y", &transform.rotate.y);
 #ifdef USE_IMGUI
 			// ImGuiのフレーム開始後に呼び出す
