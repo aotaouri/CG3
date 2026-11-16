@@ -205,6 +205,18 @@ struct AccelerationField
 
 };
 
+struct Tornado {
+	Vector3 center;           // 中心(根元)の位置
+	float swirlSpeed;         // 旋回の速さ
+	float liftSpeed;          // 上昇の速さ
+	float baseRadius;         // 根元の半径
+	float radiusPerHeight;    // 高さ 1 あたりに広がる半径(漏斗の広がり)
+	float pullGain;           // 目標半径へ寄せる強さ
+	float follow;             // 目標速度への追従の速さ
+};
+
+
+
 std::wstring ConvertString(const std::string& str) {
 	if (str.empty()) {
 		return std::wstring();
@@ -937,7 +949,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//ウインドウの生成
 	HWND hwnd = CreateWindow(
 		wc.lpszClassName,        // 利用するクラス名
-		L"LE2C_01_アオタオウリ",                  // タイトルバーの文字
+		L"LE2C_01_アオタ_オウリ",                  // タイトルバーの文字
 		WS_OVERLAPPEDWINDOW,     // よく見るウインドウスタイル
 		CW_USEDEFAULT,           // 表示X座標
 		CW_USEDEFAULT,           // 表示Y座標
@@ -1787,6 +1799,14 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	SoundPlayWave(xAudio2.Get(), soundData1);
 
+	Tornado tornado{};
+	tornado.center = { 0.0f, 0.0f, 0.0f };
+	tornado.swirlSpeed = 6.0f;
+	tornado.liftSpeed = 3.0f;
+	tornado.baseRadius = 0.5f;
+	tornado.radiusPerHeight = 0.4f;
+	tornado.pullGain = 3.0f;
+	tornado.follow = 4.0f;
 
 	// WinMain 関数内（ループ手前）
 	DebugCamera debugCamera;
@@ -1874,6 +1894,43 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				(*particleIterator).transform.translate += (*particleIterator).velocity * kDeltaTime;
 				(*particleIterator).currentTime += kDeltaTime;
 
+				float lifeRatio = (*particleIterator).currentTime / (*particleIterator).lifeTime;   // 0→1
+				float alpha = 1.0f - lifeRatio;
+
+				(*particleIterator).color.w = alpha;                        // だんだん透明に
+				float s = 1.0f - lifeRatio * 0.7f;                          // だんだん小さく
+				(*particleIterator).transform.scale = { s, s, s };
+
+				// 竜巻
+				{
+					Vector3& p = (*particleIterator).transform.translate;
+					Vector3& v = (*particleIterator).velocity;
+
+					float dx = p.x - tornado.center.x;
+					float dz = p.z - tornado.center.z;
+					float dist = std::sqrt(dx * dx + dz * dz);
+
+					if (dist > 0.0001f) {
+						float nx = dx / dist;
+						float nz = dz / dist;
+
+						float height = (std::max)(0.0f, p.y - tornado.center.y);
+						float targetRadius = tornado.baseRadius + tornado.radiusPerHeight * height;
+						float radial = (targetRadius - dist) * tornado.pullGain;
+
+						Vector3 target;
+						target.x = -nz * tornado.swirlSpeed + nx * radial;
+						target.z = nx * tornado.swirlSpeed + nz * radial;
+						target.y = tornado.liftSpeed;
+
+						float t = (std::min)(1.0f, tornado.follow * kDeltaTime);
+						v.x += (target.x - v.x) * t;
+						v.y += (target.y - v.y) * t;
+						v.z += (target.z - v.z) * t;
+					}
+				}
+
+
 				if (numInstance < kNumMaxInstance) {
 					Matrix4x4 scaleMatrix = MakeScaleMatrix((*particleIterator).transform.scale);
 					Matrix4x4 translateMatrix = MakeTranslateMatrix((*particleIterator).transform.translate);
@@ -1914,6 +1971,11 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			}
 
 			ImGui::DragFloat3("EmitterTranslate", &emitter.transform.translate.x, 0.01f, -100.0f, 100.0f);
+
+			ImGui::DragFloat("swirlSpeed", &tornado.swirlSpeed, 0.1f);
+			ImGui::DragFloat("liftSpeed", &tornado.liftSpeed, 0.1f);
+			ImGui::DragFloat("baseRadius", &tornado.baseRadius, 0.01f, 0.0f, 10.0f);
+			ImGui::DragFloat("radiusPerHeight", &tornado.radiusPerHeight, 0.01f, 0.0f, 5.0f);
 
 			ImGui::SliderAngle("Rotate Y", &transform.rotate.y);
 #ifdef USE_IMGUI
