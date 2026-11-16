@@ -1,12 +1,12 @@
 #include "WinApp.h"
-
+#include <windows.h>
+#include <cassert>
 #ifdef USE_IMGUI
 #include "externals/imgui/imgui.h"
-#include "externals/imgui/imgui_impl_win32.h"
+
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 #endif
 
-//ウインドウプロシージャ
 LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 #ifdef USE_IMGUI
@@ -16,32 +16,38 @@ LRESULT CALLBACK WinApp::WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM l
 	}
 #endif
 
-	//メッセージに応じてゲーム固有の処理を行う
+	// メッセージに応じてゲーム固有の処理を行う
 	switch (msg)
 	{
-		//ウインドウが破棄された
+		// ウィンドウが破棄された
 	case WM_DESTROY:
-		//OSに対して、アプリの終了を伝える
+		// OSに対して、アプリの終了を伝える
 		PostQuitMessage(0);
 		return 0;
 	}
-	//標準のメッセージ処理を行う
+
+	// 標準のメッセージ処理を行う
 	return DefWindowProc(hwnd, msg, wparam, lparam);
+
 }
 
 void WinApp::Initialize()
 {
+
+	//COM初期化
+	CoInitializeEx(0, COINITBASE_MULTITHREADED);
+
 	//ウインドウプロシージャ
-	wc_.lpfnWndProc = WindowProc;
+	wc.lpfnWndProc = WindowProc;
 	//ウインドウクラス名
-	wc_.lpszClassName = L"CG3WindowClass";
+	wc.lpszClassName = L"CG2WindowClass";
 	//インスタントハンドル
-	wc_.hInstance = GetModuleHandle(nullptr);
+	wc.hInstance = GetModuleHandle(nullptr);
 	//カーソル
-	wc_.hCursor = LoadCursor(nullptr, IDC_ARROW);
+	wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
 
 	//ウインドウクラスを登録する
-	RegisterClass(&wc_);
+	RegisterClass(&wc);
 
 	//ウインドウサイズを表す構造体にクライアント領域を入れる
 	RECT wrc = { 0,0,kClientWidth,kClientHeight };
@@ -49,10 +55,11 @@ void WinApp::Initialize()
 	//クライアント領域をもとに実際のサイズにwrcを変更してもらう
 	AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
 
+
 	//ウインドウの生成
-	hwnd_ = CreateWindow(
-		wc_.lpszClassName,       // 利用するクラス名
-		L"LE2C_01_アオタ_オウリ", // タイトルバーの文字
+	hwnd = CreateWindow(
+		wc.lpszClassName,        // 利用するクラス名
+		L"CG2",                  // タイトルバーの文字
 		WS_OVERLAPPEDWINDOW,     // よく見るウインドウスタイル
 		CW_USEDEFAULT,           // 表示X座標
 		CW_USEDEFAULT,           // 表示Y座標
@@ -60,11 +67,39 @@ void WinApp::Initialize()
 		wrc.bottom - wrc.top,    // ウインドウ縦幅
 		nullptr,                 // 親ウインドウハンドル
 		nullptr,                 // メニューハンドル
-		wc_.hInstance,           // インスタントハンドル
+		wc.hInstance,            // インスタントハンドル
 		nullptr);                // オプション
+
+	//ウインドウを表示する
+	ShowWindow(hwnd, SW_SHOW);
+
+}
+
+void WinApp::Update()
+{
+
 }
 
 void WinApp::Finalize()
 {
-	CloseWindow(hwnd_);
+	CloseWindow(hwnd);
+	CoUninitialize();
+}
+
+bool WinApp::ProcessMessage()
+{
+	MSG msg{};
+
+	if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+
+	if (msg.message == WM_QUIT)
+	{
+		return true;
+	}
+
+	return false;
 }

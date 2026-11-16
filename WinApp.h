@@ -1,32 +1,39 @@
 #pragma once
-#include <Windows.h>
+#include <windows.h>
 #include <cstdint>
 
-// ウィンドウアプリケーション
 class WinApp
 {
 public:
-	// クライアント領域のサイズ(クラスの定数)
-	static constexpr int32_t kClientWidth = 1280;
-	static constexpr int32_t kClientHeight = 720;
 
-
-	// ウィンドウプロシージャ(静的メンバ関数)
 	static LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
-
-	// 初期化(ウィンドウクラスの登録とウィンドウの生成)
 	void Initialize();
-	// 終了
+
+	void Update();
+
+	//終了
 	void Finalize();
 
-	// getter
-	HWND GetHwnd() const { return hwnd_; }
-	HINSTANCE GetHInstance() const { return wc_.hInstance; }
+	//メッセージの処理
+	bool ProcessMessage();
+
+	HWND GetHwnd() const { return hwnd; }
+
+	//getter
+	HINSTANCE GetHInstance() const { return wc.hInstance; }
+
+	//クライアント領域のサイズ
+	static const  int32_t kClientWidth = 1280;
+	static	const int32_t kClientHeight = 720;
 
 private:
-	// ウィンドウハンドル
-	HWND hwnd_ = nullptr;
-	// ウィンドウクラスの設定
-	WNDCLASS wc_{};
+
+	//ウィンドウハンドル
+	HWND hwnd = nullptr;
+
+	//ウィンドウクラスの設定
+	WNDCLASS wc{};
+
 };
+

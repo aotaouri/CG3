@@ -1,105 +1,109 @@
 #pragma once
-#include <Windows.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>
-#include <dxcapi.h>
 #include <wrl.h>
-#include <array>
+#include <dxcapi.h>
 #include <cstdint>
-#include "WinApp.h"
+#include <string>
+#include <chrono>
 
-// DirectX基盤クラス
+#include "externals/DirectXTex/DirectXTex.h" 
+
+
+class WinApp;
+
 class DirectXCommon
 {
 public:
-	// 終了処理(フェンスイベントのクローズ、ImGuiの終了)
-	~DirectXCommon();
+    void Initialize(WinApp* winApp);
 
-	// 初期化
-	void Initialize(WinApp* winApp);
+    // ゲッター群
+    ID3D12Device* GetDevice() const { return device_.Get(); }
+    ID3D12GraphicsCommandList* GetCommandList() const { return commandList_.Get(); }
+    ID3D12DescriptorHeap* GetSrvDescriptorHeap() const { return srvDescriptorHeap_.Get(); }
 
-	void PreDraw();
+    //描画前処理
+    void PreDraw();
 
-	void PostDraw();
+    //描画後処理
+    void PostDraw();
 
-	// Getter
-	ID3D12Device* GetDevice() const { return device_.Get(); }
-	ID3D12GraphicsCommandList* GetCommandList() const { return commandList_.Get(); }
+    //シェーダーのコンパイル
+    Microsoft::WRL::ComPtr<IDxcBlob> CompileShader(const std::wstring& filePath, const wchar_t* profile);
 
-private:
-	// デバイスの初期化
-	void InitializeDevice();
-	// コマンド関連の初期化
-	void InitializeCommand();
-	// スワップチェーンの生成
-	void CreateSwapChain();
-	// 深度バッファの生成
-	void CreateDepthBuffer();
-	// 各種デスクリプタヒープの生成
-	void CreateDescriptorHeaps();
-	// レンダーターゲットビューの初期化
-	void InitializeRenderTargetView();
-	// 深度ステンシルビューの初期化
-	void InitializeDepthStencilView();
-	// フェンスの生成
-	void CreateFence();
-	// ビューポート矩形の初期化
-	void InitializeViewport();
-	// シザリング矩形の初期化
-	void InitializeScissorRect();
-	// DXCコンパイラの生成
-	void CreateDXCCompiler();
-	// ImGuiの初期化
-	void InitializeImGui();
+    //バッファーリソースの生成
+    Microsoft::WRL::ComPtr<ID3D12Resource> CreateBufferResource(size_t sizeBytes);
 
-	// デスクリプタヒープを1つ生成するヘルパー
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(
-		D3D12_DESCRIPTOR_HEAP_TYPE heapType, UINT numDescriptors, bool shaderVisible);
+    //テクスチャリソースの生成
+    Microsoft::WRL::ComPtr<ID3D12Resource> CreateTextureResource(const DirectX::TexMetadata& metadata);
+
+    //テクスチャデータの転送
+    void UploadTextureData(const Microsoft::WRL::ComPtr<ID3D12Resource>& texture, const DirectX::ScratchImage& mipImages);
+
+    //テクスチャファイルの読み込み
+    static DirectX::ScratchImage LoadTexture(const std::string& filePath);
+
+
 
 private:
-	// WindowsAPI(借り物。所有しない)
-	WinApp* winApp_ = nullptr;
+    // 初期化のサブ関数群
+    void InitializeDevice();
+    void InitializeCommand();
+    void InitializeSwapChain();
+    void InitializeDepthBuffer();
+    void InitializeDescriptorHeaps();
+    void InitializeRenderTargets();
+    void InitializeDepthStencilView();
+    void InitializeFence();
+    void InitializeViewport();
+    void InitializeScissorRect();
+    void InitializeDXCCompiler();
+    void InitializeImGui();
 
-	// デバイス関連
-	Microsoft::WRL::ComPtr<IDXGIFactory7> dxgiFactory_;
-	Microsoft::WRL::ComPtr<ID3D12Device> device_;
+    //FPS固定初期化
+    void InitializeFixFPS();
+    //FPS固定更新
+    void UpdateFixFPS();
 
-	// コマンド関連
-	Microsoft::WRL::ComPtr<ID3D12CommandQueue> commandQueue_;
-	Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator_;
-	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList_;
+private:
+    WinApp* winApp_ = nullptr;
 
-	// スワップチェーン
-	Microsoft::WRL::ComPtr<IDXGISwapChain4> swapChain_;
-	DXGI_SWAP_CHAIN_DESC1 swapChainDesc_{};
-	std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, 2> swapChainResources_;
+    // Direct3D12 / DXGI 関連オブジェクト
+    Microsoft::WRL::ComPtr<IDXGIFactory7> dxgiFactory_;
+    Microsoft::WRL::ComPtr<IDXGIAdapter4> useAdapter_;
+    Microsoft::WRL::ComPtr<ID3D12Device> device_;
 
-	// 深度バッファ
-	Microsoft::WRL::ComPtr<ID3D12Resource> depthStencilResource_;
+    Microsoft::WRL::ComPtr<ID3D12CommandQueue> commandQueue_;
+    Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator_;
+    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList_;
 
-	// デスクリプタヒープ
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvHeap_;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> srvHeap_;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> dsvHeap_;
-	uint32_t descriptorSizeRTV_ = 0;
-	uint32_t descriptorSizeSRV_ = 0;
-	uint32_t descriptorSizeDSV_ = 0;
+    Microsoft::WRL::ComPtr<IDXGISwapChain4> swapChain_;
+    Microsoft::WRL::ComPtr<ID3D12Resource> swapChainResources_[2];
 
-	// RTV
-	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc_{};
-	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandles_[2]{};
+    Microsoft::WRL::ComPtr<ID3D12Resource> depthStencilResource_;
 
-	// フェンス
-	Microsoft::WRL::ComPtr<ID3D12Fence> fence_;
-	uint64_t fenceValue_ = 0;
-	HANDLE fenceEvent_ = nullptr;
+    // ディスクリプタヒープ
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvDescriptorHeap_;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> srvDescriptorHeap_;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> dsvDescriptorHeap_;
 
-	// ビューポート・シザー矩形
-	D3D12_VIEWPORT viewport_{};
-	D3D12_RECT scissorRect_{};
+    D3D12_CPU_DESCRIPTOR_HANDLE rtvHandles_[2]{};
 
-	// DXCコンパイラ
-	Microsoft::WRL::ComPtr<IDxcUtils> dxcUtils_;
-	Microsoft::WRL::ComPtr<IDxcCompiler3> dxcCompiler_;
-	Microsoft::WRL::ComPtr<IDxcIncludeHandler> includeHandler_;
+    // フェンス
+    Microsoft::WRL::ComPtr<ID3D12Fence> fence_;
+    uint64_t fenceValue_ = 0;
+    HANDLE fenceEvent_ = nullptr;
+
+    // ビューポートとシザー矩形
+    D3D12_VIEWPORT viewport_{};
+    D3D12_RECT scissorRect_{};
+
+    // DXC
+    Microsoft::WRL::ComPtr<IDxcUtils> dxcUtils_;
+    Microsoft::WRL::ComPtr<IDxcCompiler3> dxcCompiler_;
+    Microsoft::WRL::ComPtr<IDxcIncludeHandler> includeHandler_;
+
+    //記録時間(FPS固定用)
+    std::chrono::steady_clock::time_point reference_;
+
 };
